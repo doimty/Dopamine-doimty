@@ -629,7 +629,7 @@ void *boomerang_server(struct boomerang_info *info)
     
     gSystemInfo.jailbreakSettings.markAppsAsDebugged = appJITEnabled;
     gSystemInfo.jailbreakSettings.trollStoreLiteFixDisabled = ![[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"trollStoreLiteFixEnabled" fallback:YES];
-    gSystemInfo.jailbreakSettings.spinlockSafeIsolationDisabled = ![[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"spinlockSafeIsolationEnabled" fallback:YES];
+    gSystemInfo.jailbreakSettings.spinlockSafeIsolationDisabled = ![[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"spinlockSafeIsolationEnabled" fallback:NO];
     gSystemInfo.jailbreakSettings.jetsamMultiplier = jetsamMultiplierOption ? (jetsamMultiplierOption.doubleValue / 2) : 0;
     
     

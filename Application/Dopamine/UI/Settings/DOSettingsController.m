@@ -273,7 +273,7 @@
                 PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Spinlock_Isolation") target:self set:@selector(setSpinlockIsolationEnabled:specifier:) get:@selector(readSpinlockIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
                 [isolationSpecifier setProperty:@YES forKey:@"enabled"];
                 [isolationSpecifier setProperty:@"spinlockSafeIsolationEnabled" forKey:@"key"];
-                [isolationSpecifier setProperty:@YES forKey:@"default"];
+                [isolationSpecifier setProperty:@NO forKey:@"default"];
                 [specifiers addObject:isolationSpecifier];
             }
             /**************************** roothide specfic *********************************/
