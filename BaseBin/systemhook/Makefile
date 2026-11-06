@@ -2,7 +2,7 @@ TARGET = systemhook.dylib
 CC = clang
 
 CFLAGS = -I../.include -I./src -I../_external/modules/litehook/src -isysroot $(shell xcrun --sdk iphoneos --show-sdk-path) -arch arm64 -arch arm64e -miphoneos-version-min=15.0 -install_name @loader_path/$(TARGET) -Wno-deprecated-declarations -D BUILD_STANDALONE=$(BUILD_STANDALONE) -Os -moutline
-LDFLAGS = -dynamiclib
+LDFLAGS = -dynamiclib -lbsm
 
 all: roothider_inline.o $(TARGET) sign
 
@@ -28,7 +28,7 @@ sign: $(TARGET)
 $(TARGET): $(wildcard src/*.[cSm] src/common/*.[cSm] ../libjailbreak/src/jbclient_*.c ../libjailbreak/src/inline_svc.[cS] ../libjailbreak/src/hookd.c ../_external/modules/litehook/src/*.c)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-$(TARGET): ../libroothider/src/jailbreakd.c roothider_inline.o
+$(TARGET): ../libroothider/src/jailbreakd.c ../libroothider/src/_configuration.c ../libroothider/src/app_isolation_reply.c ../libroothider/src/app_isolation_mach.c roothider_inline.o
 
 clean:
 	@rm -f $(TARGET)
