@@ -23,11 +23,11 @@
     "BaseBin/jbctl/src/main.m": "953119696dbc143a8251a635154200cfacfc3688acab481482ece14a26208a8c",
     "BaseBin/jbctl/src/update_target.m": "f6935e0c1159638e3395523ebc9422dd9c2f7c5a5498129deef06ef8ebd18ac2",
     "Application/Dopamine/Jailbreak/DOJailbreaker.m": "d960d0037ff7992f89382f4758dfc8a2e5f692623159527e07144f73f1871814",
-    "Application/Dopamine/Jailbreak/DOBootstrapper.m": "a6f2bc6d610a14dbd53c77d2de7efeeaa5bc663ab167df74658ee2d0e1f481e1",
+    "Application/Dopamine/Jailbreak/DOBootstrapper.m": "81a7089da835c194401adf3fb3fd45bedd662b96c965452b7da9e39625705e89",
     "Application/Dopamine/Jailbreak/DOEnvironmentManager.m": "1ee91c1573da0896f72e8e5e96e65423a43ba4600dec7dd7f46c7ba50ae5b415",
     "Application/Dopamine/UI/DOUIManager.m": "0602447c9f3b07cd2b28cc60140382648a298c32e3fb83bd52c56281c52296db",
     "Application/Dopamine/UI/Settings/DOSettingsController.m": "327089ad9720a5b778b7ccdb3eee19cca403a69f17714cd5035e4d6222d9a891",
     "Application/Dopamine/UI/DOJailbreakButton.m": "ad350c0147ded9a4b0da48f35ddfd8d42220e87e5692f3b7c0f8e7f3a7a69fb9"
   },
-  "protected_note": "DOJailbreaker/DOSettingsController hashes updated for approved revision-33 recovery change: spinlock isolation default off (556fc88)."
+  "protected_note": "DOJailbreaker/DOSettingsController hashes updated for approved revision-33 recovery change: spinlock isolation default off (556fc88). DOBootstrapper hash updated for restored official startup path: roothideWhite install removed, .version-roothide back to 30."
 }

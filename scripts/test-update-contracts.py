@@ -51,8 +51,8 @@ def static_checks() -> None:
     assert "numericalVersionRepresentation" not in update and "getLaunchedReleaseTag" not in update
     assert "environment.jailbrokenVersionRootHide" in update and "environment.jailbrokenVersion" in update
     revision = read("BaseBin/_external/basebin/.version-roothide").strip()
-    assert revision.isascii() and revision.isdecimal() and int(revision) > 30, "doimty revision must advance beyond 30"
-    print("PASS static update wiring: package IDs, validated archive selection, paired version comparator, revision > 30")
+    assert revision.isascii() and revision.isdecimal() and int(revision) == 30, "doimty revision must match official pairing (30)"
+    print("PASS static update wiring: package IDs, validated archive selection, paired version comparator, revision == 30")
 
 
 def generate_tipa_fixtures(directory: Path) -> None:
