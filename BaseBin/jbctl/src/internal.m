@@ -97,19 +97,25 @@ int fakelib_set_mounted(bool mounted)
 int jbctl_handle_internal(const char *command, int argc, char* argv[])
 {
 	if (!strcmp(command, "launchd_stash_port")) {
+		// Diagnostic exit codes (DOJailbreaker reports the code, so a silent
+		// stash failure becomes a visible app error instead of a -2 panic):
+		// 11 = port lookup on self failed, 12 = self initports < 3,
+		// 13 = port to stash not set, 14 = task_for_pid(launchd) failed,
+		// 15 = port lookup on launchd failed, 16 = launchd initports < 3,
+		// 17 = mach_ports_register (stash) failed, 0 = success.
 		mach_port_t *selfInitPorts = NULL;
 		mach_msg_type_number_t selfInitPortsCount = 0;
 		if (mach_ports_lookup(mach_task_self(), &selfInitPorts, &selfInitPortsCount) != 0) {
 			printf("ERROR: Failed port lookup on self\n");
-			return -1;
+			return 11;
 		}
 		if (selfInitPortsCount < 3) {
 			printf("ERROR: Unexpected initports count on self\n");
-			return -1;
+			return 12;
 		}
 		if (selfInitPorts[2] == MACH_PORT_NULL) {
 			printf("ERROR: Port to stash not set\n");
-			return -1;
+			return 13;
 		}
 
 		printf("Port to stash: %u\n", selfInitPorts[2]);
@@ -117,22 +123,22 @@ int jbctl_handle_internal(const char *command, int argc, char* argv[])
 		mach_port_t launchdTaskPort;
 		if (task_for_pid(mach_task_self(), 1, &launchdTaskPort) != 0) {
 			printf("task_for_pid on launchd failed\n");
-			return -1;
+			return 14;
 		}
 		mach_port_t *launchdInitPorts = NULL;
 		mach_msg_type_number_t launchdInitPortsCount = 0;
 		if (mach_ports_lookup(launchdTaskPort, &launchdInitPorts, &launchdInitPortsCount) != 0) {
 			printf("mach_ports_lookup on launchd failed\n");
-			return -1;
+			return 15;
 		}
 		if (launchdInitPortsCount < 3) {
 			printf("ERROR: Unexpected initports count on launchd\n");
-			return -1;
+			return 16;
 		}
 		launchdInitPorts[2] = selfInitPorts[2]; // Transfer port to launchd
 		if (mach_ports_register(launchdTaskPort, launchdInitPorts, launchdInitPortsCount) != 0) {
 			printf("ERROR: Failed stashing port into launchd\n");
-			return -1;
+			return 17;
 		}
 		mach_port_deallocate(mach_task_self(), launchdTaskPort);
 		return 0;

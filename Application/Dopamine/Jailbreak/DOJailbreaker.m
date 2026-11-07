@@ -430,6 +430,22 @@ void *boomerang_server(struct boomerang_info *info)
         }
     } while (!WIFEXITED(status) && !WIFSIGNALED(status));
 
+    // jbctl must have stashed the boomerang port into launchd before we
+    // inject the hook; if it failed, proceeding would make launchdhook panic
+    // with "Failed to recover primitives (error -2)". Surface the failure
+    // as an app error instead, with jbctl's diagnostic exit code
+    // (11 = port lookup on self, 12 = self initports < 3,
+    // 13 = port to stash not set, 14 = task_for_pid(launchd) failed,
+    // 15 = port lookup on launchd, 16 = launchd initports < 3,
+    // 17 = mach_ports_register/stash failed, 41 = jbctl not root,
+    // 42 = jbctl missing argument).
+    if (WIFSIGNALED(status)) {
+        return [NSError errorWithDomain:JBErrorDomain code:JBErrorCodeFailedLaunchdInjection userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"jbctl launchd_stash_port killed by signal %d", WTERMSIG(status)]}];
+    }
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        return [NSError errorWithDomain:JBErrorDomain code:JBErrorCodeFailedLaunchdInjection userInfo:@{NSLocalizedDescriptionKey : [NSString stringWithFormat:@"jbctl launchd_stash_port failed with exit code %d", WEXITSTATUS(status)]}];
+    }
+
     // Inject launchdhook.dylib into launchd via opainject
     int r = exec_cmd(JBROOT_PATH("/basebin/opainject"), "1", JBROOT_PATH("/basebin/launchdhook.dylib"), NULL);
     if (r != 0) {
