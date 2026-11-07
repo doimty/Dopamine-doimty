@@ -1414,8 +1414,8 @@ int getCFMajorVersion(void)
         NSError *error = [self installPackageManagers];
         if (error) return error;
         
-        // 首次越狱依次安装 RootHide 管理器和白名单管理器。
-        NSArray<NSString *> *initialPackages = @[@"roothideapp.deb", @"roothideWhite.deb"];
+        // 首次越狱安装 RootHide 管理器。
+        NSArray<NSString *> *initialPackages = @[@"roothideapp.deb"];
         for (NSString *packageName in initialPackages) {
             NSString *packagePath = [[NSBundle mainBundle].bundlePath stringByAppendingPathComponent:packageName];
             r = [self installPackage:packagePath];

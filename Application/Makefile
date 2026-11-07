@@ -3,8 +3,6 @@
 all: Dopamine.ipa
 
 Dopamine.ipa: build/Build/Products/Debug-iphoneos/Dopamine.app
-	# 暂不打包 1800，同时移除旧构建目录遗留的副本。
-	rm -f build/Build/Products/Debug-iphoneos/Dopamine.app/bootstrap_1800.tar.zst
 	# 不再打包 palera1n，并清理增量构建中的旧框架。
 	rm -rf build/Build/Products/Debug-iphoneos/Dopamine.app/Frameworks/palera1n.framework
 	@echo Ad-Hoc signing Dopamine
