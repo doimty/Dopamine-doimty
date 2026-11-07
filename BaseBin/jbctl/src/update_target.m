@@ -90,11 +90,6 @@ JBCTLUpdatePackage *jbctl_update_preflight_tipa(NSString *path)
     struct stat before, after;
     if (fstat(fd, &before) != 0 || !S_ISREG(before.st_mode) || before.st_size <= 0 ||
         (uint64_t)before.st_size > MaxPackageBytes) { close(fd); return nil; }
-    // libarchive is weak-linked: if it could not be loaded, fail the preflight
-    // gracefully instead of calling through a NULL function pointer.
-    // Take the address: a bare weak-imported function designator always
-    // evaluates to true and trips -Wpointer-bool-conversion under -Werror.
-    if (!&archive_read_new) { close(fd); return nil; }
     struct archive *reader = archive_read_new();
     if (!reader) { close(fd); return nil; }
     JBCTLUpdatePackage *result = nil;
