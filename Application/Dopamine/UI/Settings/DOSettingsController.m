@@ -35,13 +35,27 @@
     [super viewDidLoad];
 }
 
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    // Update the live status in place; never rebuild the specifier array here,
+    // which can desynchronise UITableView's row data.
+    if (![DOEnvironmentManager sharedManager].isJailbroken) return;
+    for (PSSpecifier *specifier in _specifiers) {
+        if (![specifier.identifier isEqualToString:@"doimtyIsolationGroup"]) continue;
+        NSString *footer = [NSString stringWithFormat:@"%@\n\n%@",
+            DOLocalizedString(@"Settings_Doimty_Isolation_Footer"), [self doimtyIsolationStatusText]];
+        if (![[specifier propertyForKey:@"footerText"] isEqualToString:footer]) {
+            [specifier setProperty:footer forKey:@"footerText"];
+            [self reloadSpecifier:specifier animated:NO];
+        }
+        break;
+    }
+}
+
 - (void)viewWillAppear:(BOOL)arg1
 {
     [super viewWillAppear:arg1];
-    // The isolation status line is live state, so rebuild the list each time.
-    if ([DOEnvironmentManager sharedManager].isJailbroken) {
-        _specifiers = nil;
-    }
     if (_lastKnownTheme != [[DOThemeManager sharedInstance] enabledTheme].key)
     {
         [DOSceneDelegate relaunch];
@@ -289,6 +303,7 @@
                 // Dyld patching and blacklist isolation belong to one feature area;
                 // keep them in a single group instead of two separate rows.
                 PSSpecifier *isolationGroup = [PSSpecifier emptyGroupSpecifier];
+                isolationGroup.identifier = @"doimtyIsolationGroup";
                 [isolationGroup setProperty:[NSString stringWithFormat:@"%@\n\n%@",
                     DOLocalizedString(@"Settings_Doimty_Isolation_Footer"), [self doimtyIsolationStatusText]] forKey:@"footerText"];
                 [specifiers addObject:isolationGroup];
@@ -549,7 +564,8 @@
 // Localized on/off words for the status line.
 - (NSString *)doimtyOnOff:(BOOL)value
 {
-    return value ? DOLocalizedString(@"Enabled") : DOLocalizedString(@"Doimty_Off");
+    NSString *text = value ? DOLocalizedString(@"Enabled") : DOLocalizedString(@"Doimty_Off");
+    return text ?: (value ? @"on" : @"off");
 }
 
 // Shows every precondition so an inactive feature is self-explanatory.
@@ -565,8 +581,10 @@
         isoOn = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@DOIMTY_ISOLATION_PREFERENCE_KEY fallback:NO];
         dyldOn = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"dyldPatchEnabled" fallback:NO];
     }
-    return [NSString stringWithFormat:DOLocalizedString(@"Settings_Doimty_Isolation_Status"),
-        [self doimtyOnOff:supported], [self doimtyOnOff:dyldOn], [self doimtyOnOff:isoOn]];
+    NSString *pattern = DOLocalizedString(@"Settings_Doimty_Isolation_Status");
+    if (!pattern) return @"";
+    return [NSString stringWithFormat:pattern, [self doimtyOnOff:supported],
+        [self doimtyOnOff:dyldOn], [self doimtyOnOff:isoOn]];
 }
 
 - (id)readDoimtyIsolationEnabled:(PSSpecifier *)specifier{
