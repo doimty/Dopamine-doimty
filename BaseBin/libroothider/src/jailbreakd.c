@@ -49,8 +49,9 @@ static uint64_t isolationGeneration;
 static bool isolationVerified;
 
 /* Last spawn decision, recorded for the read-only diagnostics string. */
-static _Atomic int diagStrict, diagBlacklisted, diagSupported, diagReadySkip, diagDecisions;
-static _Atomic int diagRegistrations, diagRegisterFailures;
+/* Plain ints mutated only through __atomic builtins, which clang accepts. */
+static int diagStrict, diagBlacklisted, diagSupported, diagReadySkip, diagDecisions;
+static int diagRegistrations, diagRegisterFailures;
 
 void jbdIsolationNoteDecision(int strict, int blacklisted, int supported, int readySkip)
 {
