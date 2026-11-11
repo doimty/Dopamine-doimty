@@ -214,9 +214,9 @@ def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit, requ
         expected_id = "com.opa334.Dopamine-roothide" if mode == "control" else "com.doimty.dopamine"
         require(info.get("CFBundleIdentifier") == expected_id, "unexpected app bundle identifier")
         base_version = (source_root / "BaseBin/_external/basebin/.version").read_text(encoding="utf-8").strip()
-    revision = (source_root / "BaseBin/_external/basebin/.version-roothide").read_text(encoding="utf-8").strip()
-    expected_version = base_version + "-" + revision
-    require(info.get("CFBundleShortVersionString") == expected_version, "unexpected ShortVersion")
+        revision = (source_root / "BaseBin/_external/basebin/.version-roothide").read_text(encoding="utf-8").strip()
+        expected_version = base_version + "-" + revision
+        require(info.get("CFBundleShortVersionString") == expected_version, "unexpected ShortVersion")
         require(mode == "control" or str(info.get("CFBundleVersion")) == revision,
                 "own build version must equal the shipped revision")
         executable = info.get("CFBundleExecutable")
