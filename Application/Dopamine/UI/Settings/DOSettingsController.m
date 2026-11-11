@@ -593,7 +593,8 @@
                 const char *text = xpc_string_get_string_ptr(value);
                 if (text) line = [line stringByAppendingFormat:@"\n%s", text];
             }
-            xpc_release(value);
+            // Under ARC the copied xpc object is released by the transfer below.
+            (void)(__bridge_transfer id)value;
         }
     }
     return line;
