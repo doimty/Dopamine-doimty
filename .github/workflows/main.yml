@@ -20,6 +20,9 @@ concurrency:
 env:
   OFFICIAL_COMMIT: 9617d75f476423fdfd33477299c8a1349eb6f375
 
+permissions:
+  contents: write
+
 jobs:
   regressions:
     runs-on: macos-26-intel
@@ -203,6 +206,24 @@ jobs:
             --workflow-commit "${{ github.sha }}" \
             --require-clean \
             --output "dist/${{ matrix.label }}-manifest.json"
+
+      - name: Publish release asset
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/official-isolation'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ matrix.label }}-${{ github.sha }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/${{ matrix.label }}-*.tipa --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$TAG" dist/${{ matrix.label }}-*.tipa \
+              --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" \
+              --title "${{ matrix.label }} ${GITHUB_SHA}" \
+              --notes "Built from ${{ matrix.repository }} at ${{ matrix.ref }}; verified package, see attached manifest artifact."
+          fi
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[] | "\(.name) \(.size)"'
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
