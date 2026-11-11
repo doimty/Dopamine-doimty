@@ -630,7 +630,7 @@ void *boomerang_server(struct boomerang_info *info)
     gSystemInfo.jailbreakSettings.markAppsAsDebugged = appJITEnabled;
     // DOIMTY_ISOLATION_INIT_BEGIN: do not inherit an older experimental opt-in.
     __atomic_store_n(&gSystemInfo.jailbreakSettings.doimtyBlacklistIsolationEnabled,
-        [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@DOIMTY_ISOLATION_PREFERENCE_KEY fallback:NO], __ATOMIC_RELEASE);
+        [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@DOIMTY_ISOLATION_PREFERENCE_KEY fallback:YES], __ATOMIC_RELEASE);
     // DOIMTY_ISOLATION_INIT_END
     gSystemInfo.jailbreakSettings.jetsamMultiplier = jetsamMultiplierOption ? (jetsamMultiplierOption.doubleValue / 2) : 0;
     

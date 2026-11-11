@@ -296,7 +296,7 @@
                 PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Doimty_Isolation") target:self set:@selector(setDoimtyIsolationEnabled:specifier:) get:@selector(readDoimtyIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
                 [isolationSpecifier setProperty:@(!envManager.isJailbroken || jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SUPPORTED_KEY)) forKey:@"enabled"];
                 [isolationSpecifier setProperty:@DOIMTY_ISOLATION_PREFERENCE_KEY forKey:@"key"];
-                [isolationSpecifier setProperty:@NO forKey:@"default"];
+                [isolationSpecifier setProperty:@YES forKey:@"default"];
                 isolationSpecifier.identifier = @"doimtyBlacklistIsolation";
                 [specifiers addObject:isolationSpecifier];
                 [specifiers addObject:[PSSpecifier emptyGroupSpecifier]];
