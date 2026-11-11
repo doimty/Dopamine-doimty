@@ -59,7 +59,9 @@ static const uint64_t o_TXMAddressSpace_allowsInvalidCode = 0x80;
 typedef unsigned mach_msg_type_number_t;
 typedef int *task_info_t;
 typedef struct { uint64_t all_image_info_addr, all_image_info_size; } task_dyld_info_data_t;
-struct isolation_repair_guard { uint64_t kernel_task; bool (*cancelled)(void *); void *context; };
+struct isolation_repair_guard { int pid; int pidversion; uint64_t kernel_task;
+    bool (*cancelled)(void *); void *context; };
+static int rh_isolation_pidversion(int pid) { (void)pid; return 7; }
 static bool cancelled, arm64e = true;
 static int reads, writes, cancel_read, fail_read, fail_write, cancel_write;
 static bool cancelled_fn(void *unused) { (void)unused; return cancelled; }
@@ -113,7 +115,7 @@ static void reset(void)
 cases = r'''
 int main(void)
 {
-    struct isolation_repair_guard guard = {0x2000, cancelled_fn, NULL};
+    struct isolation_repair_guard guard = {0x11, 7, 0x2000, cancelled_fn, NULL};
     /* Both production pmap branches: cancellation in pointer reads prevents the
      * actual byte primitive; errors propagate rather than a success ACK. */
     for (int txm = 0; txm < 2; txm++) {
