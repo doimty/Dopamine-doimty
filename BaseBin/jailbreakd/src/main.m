@@ -11,6 +11,7 @@
 extern char **environ;
 
 void jailbreakd_received_message(mach_port_t port);
+mach_port_t jailbreakd_start_isolation_server(void);
 
 int posix_spawnattr_setspecialport_np(posix_spawnattr_t *attr, mach_port_t new_port, int which);
 int posix_spawnattr_set_registered_ports_np(posix_spawnattr_t * __restrict attr, mach_port_t portarray[], uint32_t count);
@@ -110,7 +111,10 @@ int main(int argc, char* argv[])
 		}
 
 		JBLogDebug("check in jailbreakd port...");
-		mach_port_t serverPort = jbclient_jailbreakd_checkin();
+        /* This receiver is created only after primitives and the original respawn path.
+         * Publication alone is not readiness; launchd must receive a bounded v2 PING. */
+        mach_port_t isolationPort = jailbreakd_start_isolation_server();
+		mach_port_t serverPort = jbdCheckinWithIsolation(isolationPort);
 		if (!MACH_PORT_VALID(serverPort)) {
 			JBLogError("Failed to check in server port");
 			return 6;

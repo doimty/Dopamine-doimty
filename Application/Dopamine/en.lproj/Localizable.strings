@@ -45,6 +45,10 @@
 "Settings_Allow_Old_arm64e_ABI_Libraries" = "Allow Legacy arm64e Libraries";
 "Settings_Jetsam_Multiplier" = "Jetsam Multiplier";
 
+"Settings_Doimty_Isolation" = "Blacklist Isolation";
+"Settings_Doimty_Isolation_Footer" = "Stops blacklisted apps from inheriting tweak injection. Apps that set appconfigSpinlockSafe to false are left alone. iOS 15 arm64e devices only.";
+"Settings_Doimty_Isolation_Error" = "The jailbreak did not accept the setting (error %d).";
+
 // Settings Buttons
 "Button_Remove_Jailbreak" = "Remove Jailbreak";
 "Button_Hide_Jailbreak" = "Hide Jailbreak";

@@ -43,6 +43,10 @@
 "Settings_Verbose_Logs" = "詳細日誌";
 /*Settings_Apps_JIT*/
 
+"Settings_Doimty_Isolation" = "黑名單隔離";
+"Settings_Doimty_Isolation_Footer" = "讓黑名單內的 App 不再承受全部外掛注入。在 appconfigSpinlockSafe 裡設為 false 的 App 會保持原狀。僅適用於 iOS 15 的 arm64e 裝置。";
+"Settings_Doimty_Isolation_Error" = "越獄端沒有接受這項設定（錯誤 %d）。";
+
 // Settings Buttons
 "Button_Remove_Jailbreak" = "清除越獄";
 "Button_Hide_Jailbreak" = "隱藏越獄";

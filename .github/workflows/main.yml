@@ -1,4 +1,4 @@
-name: "*** build ipa/tipa file ***"
+name: "build ipa/tipa file"
 
 on:
   push:
@@ -17,9 +17,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  OFFICIAL_COMMIT: 9617d75f476423fdfd33477299c8a1349eb6f375
+
 jobs:
-  build:
-    runs-on: macos-latest
+  regressions:
+    runs-on: macos-26-intel
     steps:
       - name: Xcode Setup
         uses: maxim-lobanov/setup-xcode@v1
@@ -27,10 +30,109 @@ jobs:
           xcode-version: latest-stable
 
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Toolchain identity
+        run: |
+          set -x
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-path
+          clang --version
+        shell: bash
+
+      - name: Official source guard (isolation variant)
+        run: |
+          set -euo pipefail
+          python3 scripts/test-official-baseline.py --variant isolation \
+            --source-commit "${{ github.sha }}" --workflow-commit "${{ github.sha }}" --require-clean
+
+      - name: Own source and IPC contracts
+        run: |
+          set -euo pipefail
+          python3 tests/check-app-isolation-A.py
+          python3 tests/check-isolation-ipc-wiring.py
+
+      - name: Foundation policy/config/integration
+        run: |
+          set -euo pipefail
+          SANITIZE=1 bash tests/run-app-isolation-A.sh
+
+      - name: Checked repair unit (production source extraction)
+        env:
+          CC: clang
+        run: |
+          set -euo pipefail
+          python3 tests/test-checked-repair-source.py
+
+      - name: Real Mach transport and iOS SDK link
+        run: |
+          set -euo pipefail
+          bash scripts/test-app-isolation-mach.sh
+
+      - name: Upload regression log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-log
+          path: |
+            **/*.log
+          if-no-files-found: ignore
+
+  build:
+    needs: regressions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: control
+            label: official-control
             repository: roothide/Dopamine-roothide
-            submodules: recursive
+            ref: 9617d75f476423fdfd33477299c8a1349eb6f375
+          - variant: isolation
+            label: doimty-isolation
+            repository: ${{ github.repository }}
+            ref: ${{ github.sha }}
+    runs-on: macos-26-intel
+    steps:
+      - name: Xcode Setup
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout validation scripts
+        uses: actions/checkout@v4
+        with:
+          path: validation
+          fetch-depth: 0
+          submodules: false
+
+      - name: Checkout ${{ matrix.label }} source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.ref }}
+          path: source
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Record toolchain identity
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          {
+            echo "variant=${{ matrix.label }}"
+            echo "source_repository=${{ matrix.repository }}"
+            echo "source_ref=${{ matrix.ref }}"
+            echo "workflow_commit=${{ github.sha }}"
+            echo "runner=${{ runner.os }}-${{ runner.arch }}"
+            xcodebuild -version
+            echo "iphoneos_sdk=$(xcrun --sdk iphoneos --show-sdk-version)"
+            clang --version
+          } | tee dist/toolchain.log
 
       - name: Install Procursus
         uses: dhinakg/procursus-action@main
@@ -40,9 +142,10 @@ jobs:
       - name: Install better GNU Make
         run: |
           brew install make
-          echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
 
       - name: Install THEOS
+        working-directory: source
         run: |
           set -x
           export BASEDIR="$(pwd)"
@@ -53,61 +156,59 @@ jobs:
           bash install-theos.sh
           curl -L https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz --output $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
           gunzip $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
-          tar -xf $THEOS/sdks/iPhoneOS16.5.sdk.tar -C $THEOS/sdks
+          gtar -xf $THEOS/sdks/iPhoneOS16.5.sdk.tar -C $THEOS/sdks
           rm $THEOS/sdks/iPhoneOS16.5.sdk.tar
-          cd $BASEDIR
 
-      - name: Build and Install trustcache
+      - name: Build and install host trustcache
         run: |
           set -x
           git clone https://github.com/CRKatri/trustcache
           cd trustcache
-          export CFLAGS="$CFLAGS -I$(brew --prefix openssl)/include -arch arm64"
-          export LDFLAGS="$LDFLAGS -L$(brew --prefix openssl)/lib -arch arm64"
+          HOST_ARCH=$(uname -m)
+          export CFLAGS="$CFLAGS -I$(brew --prefix openssl)/include -arch $HOST_ARCH"
+          export LDFLAGS="$LDFLAGS -L$(brew --prefix openssl)/lib -arch $HOST_ARCH"
           gmake -j$(sysctl -n hw.logicalcpu) OPENSSL=1
           sudo cp trustcache /opt/procursus/bin/
 
-      - name: Set Environment Variables
-        run: |
-          set -x
-          T2=$(TZ=UTC-2 date +'%Y%m%d_%H%M%S')
-          TS=$(date -j -f "%Y%m%d_%H%M%S" "${T2}" +%s)
-          SHASH=$(git rev-parse --short HEAD)
-          echo "ctime=${T2}" >> $GITHUB_ENV
-          echo "ctimestamp=${TS}" >> $GITHUB_ENV
-          echo "shorthash=${SHASH}" >> $GITHUB_ENV
-
       - name: Install libarchive
-        run: |
-          brew install libarchive
+        run: brew install libarchive
 
       - name: Build
+        working-directory: source
         run: |
-          set -x
+          set -euo pipefail
           export BASEDIR="$(pwd)"
           export THEOS="${BASEDIR}/theos"
-          plutil -insert items.4 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>label</key><string>BUILDER</string></dict>" ./Application/Dopamine/UI/Settings/Credits.plist
-          plutil -insert items.5 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>headerCellClass</key><string>DOCreditsCell</string><key>names</key><array><dict><key>name</key><string>${{ github.actor }}</string><key>link</key><string>https://github.com/${{ github.repository }}</string></dict></array></dict>" ./Application/Dopamine/UI/Settings/Credits.plist
           gmake -j$(sysctl -n hw.logicalcpu) NIGHTLY=1
           APP_VERSION="$(cat ./BaseBin/_external/basebin/.version)-$(cat ./BaseBin/_external/basebin/.version-roothide)"
-          VERSION="(${APP_VERSION}-$(git rev-parse --short HEAD))-$(TZ=UTC git show -s --date=format-local:'%Y.%m.%d-%Z-%H.%M.%S' --format='%cd' HEAD)"
-          mv "./Application/Dopamine-roothide-${APP_VERSION}.ipa"  "./Application/roothide-Dopamine-${VERSION}.ipa"
-          mv "./Application/Dopamine-roothide-${APP_VERSION}.tipa" "./Application/roothide-Dopamine-${VERSION}.tipa"
-          echo "version=${VERSION}" >> $GITHUB_ENV
+          STAMP=$(TZ=UTC date +'%Y.%m.%d-%H.%M.%S')
+          test -f "./Application/Dopamine-roothide-${APP_VERSION}.ipa"
+          test -f "./Application/Dopamine-roothide-${APP_VERSION}.tipa"
+          cp "./Application/Dopamine-roothide-${APP_VERSION}.ipa" "../dist/${{ matrix.label }}-${APP_VERSION}-${STAMP}.ipa"
+          cp "./Application/Dopamine-roothide-${APP_VERSION}.tipa" "../dist/${{ matrix.label }}-${APP_VERSION}-${STAMP}.tipa"
+          echo "built ${APP_VERSION} for ${{ matrix.label }}"
 
-      - name: Upload Artifact
-        id: dopamine-latest-upload
-        uses: actions/upload-artifact@main
-        with:
-          name: Dopamine
-          path: |
-            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}.ipa
-          archive: false
+      - name: Verify package and record source identity
+        run: |
+          set -euo pipefail
+          IPA=$(ls dist/${{ matrix.label }}-*.ipa)
+          TIPA=$(ls dist/${{ matrix.label }}-*.tipa)
+          python3 validation/scripts/verify-official-package.py \
+            --ipa "$IPA" --tipa "$TIPA" \
+            --source-root source \
+            --variant ${{ matrix.variant }} \
+            --source-commit "$(git -C source rev-parse HEAD)" \
+            --workflow-commit "${{ github.sha }}" \
+            --require-clean \
+            --output "dist/${{ matrix.label }}-manifest.json"
 
-      - name: Upload Artifact(TIPA)
-        id: dopamine-latest-upload-tipa
-        uses: actions/upload-artifact@main
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
         with:
+          name: ${{ matrix.label }}
           path: |
-            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}.tipa
-          archive: false
+            dist/${{ matrix.label }}-*.ipa
+            dist/${{ matrix.label }}-*.tipa
+            dist/${{ matrix.label }}-manifest.json
+            dist/toolchain.log
+          if-no-files-found: error

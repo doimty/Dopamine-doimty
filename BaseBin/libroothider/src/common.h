@@ -39,6 +39,14 @@ char* proc_get_identifier(pid_t pid, char buffer[255]);
 bool isBlacklistedApp(const char* identifier);
 bool isBlacklistedPath(const char* path);
 
+// Own spawn policy: membership and opt-out come from one uncached RootHideConfig.
+struct roothide_app_spawn_policy {
+	bool blacklisted;
+	bool verified_main_executable;
+	bool isolation_opted_out;
+};
+struct roothide_app_spawn_policy roothide_get_app_spawn_policy(const char *path);
+
 bool isBlacklistedToken(audit_token_t* token);
 bool isBlacklistedPid(pid_t pid);
 

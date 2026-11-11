@@ -133,7 +133,7 @@ static int roothide_jailbreakd_lookup(audit_token_t *callerToken, xpc_object_t *
 	return 0;
 }
 
-static int roothide_jailbreakd_checkin(audit_token_t *callerToken, xpc_object_t *portOut)
+static int roothide_jailbreakd_checkin(audit_token_t *callerToken, xpc_object_t *portOut, xpc_object_t isolationCapability)
 {
 	pid_t pid = audit_token_to_pid(*callerToken);
 	uid_t uid = audit_token_to_euid(*callerToken);
@@ -141,6 +141,8 @@ static int roothide_jailbreakd_checkin(audit_token_t *callerToken, xpc_object_t 
 	if(uid != 0) return -1;
 
 	setJailbreakdProcess(pid);
+    /* Optional candidate only. Old clients send no capability and retain stock check-in. */
+    if (isolationCapability) jbdRegisterIsolationHelper(callerToken, isolationCapability);
 
 	*portOut = xpc_mach_recv_create(jailbreakdServerPort());
 	return 0;
@@ -244,6 +246,7 @@ struct jbserver_domain gRootHideDomain = {
             .args = (jbserver_arg[]) {
                     { .name = "caller-token", .type = JBS_TYPE_CALLER_TOKEN, .out = false },
                     { .name = "port", .type = JBS_TYPE_XPC_GENERIC, .out = true },
+                    { .name = "isolation-capability", .type = JBS_TYPE_XPC_GENERIC, .out = false },
                     { 0 },
             },
         },

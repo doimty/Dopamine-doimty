@@ -9,6 +9,8 @@
 #import <objc/runtime.h>
 #import <Photos/Photos.h>
 #import <libjailbreak/util.h>
+#import <libjailbreak/doimty_isolation.h>
+#include <errno.h>
 #import "DOUIManager.h"
 #import "DOPkgManagerPickerViewController.h"
 #import "DOHeaderCell.h"
@@ -278,6 +280,19 @@
             [jetsamSpecifier setProperty:@"jetsamOptionNumbers" forKey:@"valuesDataSource"];
             [jetsamSpecifier setProperty:@"jetsamOptionTitles" forKey:@"titlesDataSource"];
             [specifiers addObject:jetsamSpecifier];
+
+            if (envManager.isArm64e && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15) {
+                PSSpecifier *isolationGroup = [PSSpecifier emptyGroupSpecifier];
+                [isolationGroup setProperty:DOLocalizedString(@"Settings_Doimty_Isolation_Footer") forKey:@"footerText"];
+                [specifiers addObject:isolationGroup];
+                PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Doimty_Isolation") target:self set:@selector(setDoimtyIsolationEnabled:specifier:) get:@selector(readDoimtyIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
+                [isolationSpecifier setProperty:@(!envManager.isJailbroken || jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SUPPORTED_KEY)) forKey:@"enabled"];
+                [isolationSpecifier setProperty:@DOIMTY_ISOLATION_PREFERENCE_KEY forKey:@"key"];
+                [isolationSpecifier setProperty:@NO forKey:@"default"];
+                isolationSpecifier.identifier = @"doimtyBlacklistIsolation";
+                [specifiers addObject:isolationSpecifier];
+                [specifiers addObject:[PSSpecifier emptyGroupSpecifier]];
+            }
             
             if (!envManager.isJailbroken && !envManager.isInstalledThroughTrollStore) {
                 PSSpecifier *removeJailbreakSwitchSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Button_Remove_Jailbreak") target:self set:@selector(setRemoveJailbreakEnabled:specifier:) get:defGetter detail:nil cell:PSSwitchCell edit:nil];
@@ -519,6 +534,30 @@
     if (envManager.isJailbroken) {
         jbclient_platform_jbsettings_set_bool("markAppsAsDebugged", ((NSNumber *)value).boolValue);
     }
+}
+
+- (id)readDoimtyIsolationEnabled:(PSSpecifier *)specifier
+{
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        return @(jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SETTING_KEY));
+    }
+    return [self readPreferenceValue:specifier];
+}
+
+- (void)setDoimtyIsolationEnabled:(id)value specifier:(PSSpecifier *)specifier
+{
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        int result = jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SUPPORTED_KEY) ?
+            jbclient_platform_jbsettings_set_bool(DOIMTY_ISOLATION_SETTING_KEY, ((NSNumber *)value).boolValue) : ENOTSUP;
+        if (result != 0) {
+            [self reloadSpecifier:specifier];
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:DOLocalizedString(@"Log_Error") message:[NSString stringWithFormat:DOLocalizedString(@"Settings_Doimty_Isolation_Error"), result] preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:DOLocalizedString(@"Button_Close") style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
+            return;
+        }
+    }
+    [self setPreferenceValue:value specifier:specifier];
 }
 
 - (id)readJetsamMultiplier:(PSSpecifier *)specifier

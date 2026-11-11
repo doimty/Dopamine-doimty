@@ -44,6 +44,10 @@
 "Settings_Apps_JIT" = "允许 App 使用 JIT";
 "Settings_Jetsam_Multiplier" = "Jetsam 倍数";
 
+"Settings_Doimty_Isolation" = "黑名单隔离";
+"Settings_Doimty_Isolation_Footer" = "让黑名单里的 App 不再承受全部插件注入。在 appconfigSpinlockSafe 里设为 false 的 App 保持原样。仅适用于 iOS 15 的 arm64e 设备。";
+"Settings_Doimty_Isolation_Error" = "越狱端没有接受这项设置（错误 %d）。";
+
 // Settings Buttons
 "Button_Remove_Jailbreak" = "移除越狱";
 "Button_Hide_Jailbreak" = "隐藏越狱";

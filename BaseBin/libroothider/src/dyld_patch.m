@@ -1,5 +1,12 @@
 #import <Foundation/Foundation.h>
 
+/* This must precede libjailbreak's libbsm shim (same _BSM_AUDIT_H guard). */
+#include <bsm/audit.h>
+#include "app_isolation_mach.h"
+#include "app_isolation_repair.h"
+#include "app_isolation_ranges.h"
+#include <errno.h>
+
 #include <stdio.h>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -815,4 +822,243 @@ int proc_patch_dyld(pid_t pid)
 int proc_fix_spinlock(pid_t pid)
 {
     return proc_patch_dyld_internal(pid, true);
+}
+
+/* OWN CHECKED REPAIR: everything above, including legacy patch/fix entry points,
+ * retains the official behavior. Only this path cooperatively checks each write. */
+extern int audit_token_to_pidversion(audit_token_t token);
+struct isolation_repair_guard {
+    pid_t pid;
+    int pidversion;
+    mach_port_t task;
+    uint64_t proc;
+    uint64_t kernel_task;
+    rh_isolation_cancel_fn cancelled;
+    void *context;
+};
+
+static bool isolation_guard_allows_task(const struct isolation_repair_guard *guard)
+{
+    if (!guard || !MACH_PORT_VALID(guard->task) || guard->cancelled(guard->context) ||
+        rh_isolation_pidversion(guard->pid) != guard->pidversion) return false;
+    /* proc_find is a lookup, not a retained reference. A fixed, audited Mach task
+     * right binds Mach operations, but proc/task revalidation does not pin the
+     * kernel proc. The check/write narrow race and an already executing kernel
+     * primitive remain; the caller owns and kills the still-stopped child on error. */
+    uint64_t current = proc_find(guard->pid);
+    if (!current || current != guard->proc || proc_task(current) != guard->kernel_task ||
+        rh_isolation_pidversion(guard->pid) != guard->pidversion) return false;
+    bool paused = false;
+    if (proc_get_ppid(guard->pid) != 1 || proc_paused(guard->pid, &paused) != 0 || !paused)
+        return false;
+    return !guard->cancelled(guard->context);
+}
+
+/* Own arm64e path only: the legacy cs/pmap helpers intentionally remain unchanged.
+ * Resolve pointer reads with their status, then revalidate immediately before the
+ * actual byte write, not merely before entering a multi-step userspace helper. */
+static int isolation_read_pointer(uint64_t address, uint64_t *value)
+{
+    uint64_t raw = 0;
+    if (kreadbuf(address, &raw, sizeof(raw)) != 0) return -1;
+    *value = UNSIGN_PTR(raw);
+    return *value ? 0 : -1;
+}
+
+static int isolation_cs_allow_invalid_checked(const struct isolation_repair_guard *guard)
+{
+    if (!isolation_guard_allows_task(guard) || !host_is_arm64e()) return -1;
+    uint64_t vm_map = 0, pmap = 0, writeAddress = 0;
+    if (isolation_read_pointer(guard->kernel_task + koffsetof(task, map), &vm_map) != 0 ||
+        isolation_read_pointer(vm_map + koffsetof(vm_map, pmap), &pmap) != 0) return -1;
+    if (koffsetof(pmap, txm_address_space)) {
+        uint64_t txm = 0;
+        if (isolation_read_pointer(pmap + koffsetof(pmap, txm_address_space), &txm) != 0) return -1;
+        writeAddress = txm + koffsetof(TXMAddressSpace, allowsInvalidCode);
+    } else if (koffsetof(pmap, wx_allowed)) {
+        writeAddress = pmap + koffsetof(pmap, wx_allowed);
+    } else {
+        return -1;
+    }
+    if (!isolation_guard_allows_task(guard)) return -1;
+    if (kwrite8(writeAddress, true) != 0) return -1;
+    return isolation_guard_allows_task(guard) ? 0 : -1;
+}
+
+static int isolation_task_set_dyld_info(const struct isolation_repair_guard *guard,
+                                       uint64_t addr, uint64_t size)
+{
+    task_dyld_info_data_t selfInfo = {0};
+    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+    if (!isolation_guard_allows_task(guard) ||
+        task_info(mach_task_self(), TASK_DYLD_INFO, (task_info_t)&selfInfo, &count) != KERN_SUCCESS ||
+        count != TASK_DYLD_INFO_COUNT) return -1;
+    uint64_t selftask = task_self();
+    if (!selftask) return -1;
+    uint32_t addressOffset = 0, sizeOffset = 0, infoOffset = 0;
+    int index = 0;
+    for (; index < DYLD_INFO_MAX_SEARCH_INDEX; index++) {
+        /* Bounded reads may observe cancellation without repeatedly walking allproc.
+         * Strong proc/task checks are still mandatory before every mutation below. */
+        if (guard->cancelled(guard->context) ||
+            rh_isolation_pidversion(guard->pid) != guard->pidversion) return -1;
+        if (kread64(selftask + index * 8) == selfInfo.all_image_info_addr &&
+            kread64(selftask + (index + 1) * 8) == selfInfo.all_image_info_size) {
+            addressOffset = index * 8;
+            sizeOffset = (index + 1) * 8;
+            break;
+        }
+    }
+    if (!addressOffset || !sizeOffset) return -1;
+    for (; index < DYLD_INFO_MAX_SEARCH_INDEX; index++) {
+        /* Bounded reads may observe cancellation without repeatedly walking allproc.
+         * Strong proc/task checks are still mandatory before every mutation below. */
+        if (guard->cancelled(guard->context) ||
+            rh_isolation_pidversion(guard->pid) != guard->pidversion) return -1;
+        const uint64_t expected[6] = {1, 0, 0, 0, 1, 0};
+        uint8_t bytes[sizeof(expected)] = {0};
+        kreadbuf(guard->kernel_task + index * 8, bytes, sizeof(bytes));
+        if (memcmp(bytes, expected, sizeof(expected)) == 0) {
+            infoOffset = index * 8;
+            break;
+        }
+    }
+    if (!infoOffset) return -1;
+    uint64_t zeros[6] = {0};
+    if (!isolation_guard_allows_task(guard)) return -1;
+    if (kwritebuf(guard->kernel_task + infoOffset, zeros, sizeof(zeros)) != 0) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    if (kwrite64(guard->kernel_task + addressOffset, addr) != 0) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    if (kwrite64(guard->kernel_task + sizeOffset, size) != 0) return -1;
+    return isolation_guard_allows_task(guard) ? 0 : -1;
+}
+
+static int isolation_hook_dyld_function(const struct isolation_repair_guard *guard,
+                                        uint64_t old_func, uint64_t new_func, uint64_t orig_func)
+{
+    uint32_t tramp[] = HOOK_CODE_TEMPLATE;
+    tramp[0] |= (((old_func + sizeof(tramp)) >> 48) & 0xffff) << 5;
+    tramp[1] |= (((old_func + sizeof(tramp)) >> 32) & 0xffff) << 5;
+    tramp[2] |= (((old_func + sizeof(tramp)) >> 16) & 0xffff) << 5;
+    tramp[3] |= (((old_func + sizeof(tramp)) >>  0) & 0xffff) << 5;
+    kern_return_t kr;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_protect(guard->task, orig_func, sizeof(tramp) * 2, false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+    if (kr != KERN_SUCCESS) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_copy(guard->task, old_func, sizeof(tramp), orig_func);
+    if (kr != KERN_SUCCESS) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_write(guard->task, orig_func + sizeof(tramp), (vm_offset_t)tramp, sizeof(tramp));
+    if (kr != KERN_SUCCESS) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_protect(guard->task, orig_func, sizeof(tramp) * 2, false, VM_PROT_READ | VM_PROT_EXECUTE);
+    if (kr != KERN_SUCCESS) return -1;
+    uint32_t codes[] = HOOK_CODE_TEMPLATE;
+    codes[0] |= ((new_func >> 48) & 0xffff) << 5;
+    codes[1] |= ((new_func >> 32) & 0xffff) << 5;
+    codes[2] |= ((new_func >> 16) & 0xffff) << 5;
+    codes[3] |= ((new_func >>  0) & 0xffff) << 5;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_protect(guard->task, old_func, sizeof(codes), false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+    if (kr != KERN_SUCCESS) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_write(guard->task, old_func, (vm_offset_t)codes, sizeof(codes));
+    if (kr != KERN_SUCCESS) return -1;
+    if (!isolation_guard_allows_task(guard)) return -1;
+    kr = vm_protect(guard->task, old_func, sizeof(codes), false, VM_PROT_READ | VM_PROT_EXECUTE);
+    return kr == KERN_SUCCESS && isolation_guard_allows_task(guard) ? 0 : -1;
+}
+
+int proc_fix_spinlock_strict_checked(pid_t pid, int expected_pidversion,
+                                    rh_isolation_cancel_fn cancelled, void *context)
+{
+    if (pid <= 1 || expected_pidversion <= 0 || !cancelled) return EINVAL;
+    bool supported = false;
+#ifdef __arm64e__
+    if (!__builtin_available(iOS 16.0, *)) supported = true;
+#endif
+    if (!supported || !dyld_patch_enabled()) return ENOTSUP;
+    if (cancelled(context)) return ETIMEDOUT;
+    if (rh_isolation_pidversion(pid) != expected_pidversion) return ESRCH;
+    bool paused = false;
+    if (proc_get_ppid(pid) != 1 || proc_paused(pid, &paused) != 0 || !paused) return EBUSY;
+
+    /* Own immutable image cache: legacy initialization assertions stay unchanged. */
+    static struct DYLDINFO *stock = NULL, *patched = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        stock = loadDyldInfo("/usr/lib/dyld");
+        patched = loadDyldInfo(JBROOT_PATH("/basebin/.fakelib/dyld"));
+    });
+    if (cancelled(context)) return ETIMEDOUT;
+    if (!stock || !patched) return EIO;
+    struct rh_app_isolation_layout layout = {
+        stock->vmSpaceSize, patched->vmSpaceSize, stock->loadDyldCache_function,
+        patched->loadDyldCache_function, patched->loadDyldCache_trampoline
+    };
+    if (!rh_app_isolation_layout_valid(layout, PAGE_SIZE) ||
+        !rh_app_isolation_span(stock->all_image_info_addr, stock->all_image_info_size,
+                               stock->vmSpaceSize, 0)) return EINVAL;
+
+    int result = EIO;
+    struct isolation_repair_guard guard = {
+        pid, expected_pidversion, MACH_PORT_NULL, 0, 0, cancelled, context
+    };
+    kern_return_t kr = task_for_pid(mach_task_self(), pid, &guard.task);
+    if (kr != KERN_SUCCESS || !MACH_PORT_VALID(guard.task)) goto done;
+    audit_token_t token = {0};
+    mach_msg_type_number_t tokenCount = TASK_AUDIT_TOKEN_COUNT;
+    if (cancelled(context) ||
+        task_info(guard.task, TASK_AUDIT_TOKEN, (task_info_t)&token, &tokenCount) != KERN_SUCCESS ||
+        tokenCount != TASK_AUDIT_TOKEN_COUNT || audit_token_to_pid(token) != pid ||
+        audit_token_to_pidversion(token) != expected_pidversion ||
+        rh_isolation_pidversion(pid) != expected_pidversion) goto done;
+    guard.proc = proc_find(pid); /* Lookup only, deliberately no fictitious retain/release. */
+    if (!guard.proc) goto done;
+    guard.kernel_task = proc_task(guard.proc);
+    if (!guard.kernel_task || !isolation_guard_allows_task(&guard)) goto done;
+
+    task_dyld_info_data_t dyldInfo = {0};
+    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+    if (task_info(guard.task, TASK_DYLD_INFO, (task_info_t)&dyldInfo, &count) != KERN_SUCCESS ||
+        count != TASK_DYLD_INFO_COUNT || dyldInfo.all_image_info_addr < stock->all_image_info_addr ||
+        dyldInfo.all_image_info_size < sizeof(uint32_t) * 2) goto done;
+    uint64_t dyld_address = dyldInfo.all_image_info_addr - stock->all_image_info_addr;
+    if (!rh_app_isolation_address_span(dyld_address, stock->loadDyldCache_function, 20)) goto done;
+    struct mach_header_64 header = {0};
+    vm_size_t copied = 0;
+    if (vm_read_overwrite(guard.task, dyld_address, sizeof(header), (vm_address_t)&header, &copied) != KERN_SUCCESS ||
+        copied != sizeof(header) || header.magic != MH_MAGIC_64 || header.filetype != MH_DYLINKER) goto done;
+
+    vm_address_t remoteLoadAddress = 0;
+    vm_prot_t currentProtection = 0, maxProtection = 0;
+    if (!isolation_guard_allows_task(&guard)) goto done;
+    kr = vm_remap(guard.task, &remoteLoadAddress, patched->vmSpaceSize, 0, VM_FLAGS_ANYWHERE,
+                   mach_task_self(), (vm_address_t)patched->imageAddress, true,
+                   &currentProtection, &maxProtection, VM_INHERIT_COPY);
+    if (kr != KERN_SUCCESS ||
+        !rh_app_isolation_address_span(remoteLoadAddress, patched->loadDyldCache_function, 20) ||
+        !rh_app_isolation_address_span(remoteLoadAddress, patched->loadDyldCache_trampoline, 40)) goto done;
+    if (!isolation_guard_allows_task(&guard)) goto done;
+    if (isolation_cs_allow_invalid_checked(&guard) != 0) goto done;
+    if (isolation_hook_dyld_function(&guard, dyld_address + stock->loadDyldCache_function,
+        remoteLoadAddress + patched->loadDyldCache_function,
+        remoteLoadAddress + patched->loadDyldCache_trampoline) != 0) goto done;
+    if (isolation_task_set_dyld_info(&guard, dyldInfo.all_image_info_addr,
+                                    stock->all_image_info_size) != 0) goto done;
+    if (!isolation_guard_allows_task(&guard)) goto done;
+    kr = vm_deallocate(guard.task, remoteLoadAddress, PAGE_SIZE);
+    if (kr == KERN_SUCCESS && isolation_guard_allows_task(&guard)) result = 0;
+
+done:
+    /* No remote rollback on partial repair: it would be another write and could
+     * unmap an installed trampoline. Caller kills this child on every failure.
+     * A deadline revokes the reply mailbox; neither this function nor helper
+     * sends SIGCONT, including after an already executing primitive completes. */
+    if (cancelled(context)) result = ETIMEDOUT;
+    else if (rh_isolation_pidversion(pid) != expected_pidversion) result = ESRCH;
+    if (MACH_PORT_VALID(guard.task)) mach_port_deallocate(mach_task_self(), guard.task);
+    return result;
 }

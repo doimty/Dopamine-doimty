@@ -53,6 +53,9 @@ struct system_info {
 
 	struct {
 		bool markAppsAsDebugged;
+		// Own isolation V1; uses the original padding before jetsamMultiplier.
+		// Zero initialization and a missing serialized key both mean disabled.
+		bool doimtyBlacklistIsolationEnabled;
 		double jetsamMultiplier;
 	} jailbreakSettings;
 
@@ -434,6 +437,7 @@ extern struct system_info gSystemInfo;
 
 #define JAILBREAK_SETTINGS_ITERATE(ctx, iterator) \
 	iterator(ctx, jailbreakSettings.markAppsAsDebugged); \
+	iterator(ctx, jailbreakSettings.doimtyBlacklistIsolationEnabled); \
 	iterator(ctx, jailbreakSettings.jetsamMultiplier);
 
 #define KERNEL_SYMBOLS_ITERATE(ctx, iterator) \
@@ -720,10 +724,22 @@ __attribute__((__unused__)) static void _safe_xpc_dictionary_set_string(xpc_obje
 	bool: *((bool *)&target) = xpc_dictionary_get_bool(xdict, name) \
 )
 
-#define SYSTEM_INFO_SERIALIZE_COMPONENT(xdict, name) XPC_SET_GENERIC(xdict, #name, gSystemInfo.name)
+// Only the own isolation field uses atomic access. Every official component
+// keeps the original generic conversion; the constant name test folds away.
+#define SYSTEM_INFO_SERIALIZE_COMPONENT(xdict, name) do { \
+	if (__builtin_strcmp(#name, "jailbreakSettings.doimtyBlacklistIsolationEnabled") == 0) { \
+		xpc_dictionary_set_bool(xdict, #name, __atomic_load_n( \
+			&gSystemInfo.jailbreakSettings.doimtyBlacklistIsolationEnabled, __ATOMIC_ACQUIRE)); \
+	} else { XPC_SET_GENERIC(xdict, #name, gSystemInfo.name); } \
+} while (0)
 #define SYSTEM_INFO_SERIALIZE(xdict) SYSTEM_INFO_ITERATE(xdict, SYSTEM_INFO_SERIALIZE_COMPONENT)
 
-#define SYSTEM_INFO_DESERIALIZE_COMPONENT(xdict, name) XPC_GET_GENERIC(xdict, #name, gSystemInfo.name)
+#define SYSTEM_INFO_DESERIALIZE_COMPONENT(xdict, name) do { \
+	if (__builtin_strcmp(#name, "jailbreakSettings.doimtyBlacklistIsolationEnabled") == 0) { \
+		__atomic_store_n(&gSystemInfo.jailbreakSettings.doimtyBlacklistIsolationEnabled, \
+			xpc_dictionary_get_bool(xdict, #name), __ATOMIC_RELEASE); \
+	} else { XPC_GET_GENERIC(xdict, #name, gSystemInfo.name); } \
+} while (0)
 #define SYSTEM_INFO_DESERIALIZE(xdict) SYSTEM_INFO_ITERATE(xdict, SYSTEM_INFO_DESERIALIZE_COMPONENT)
 
 #define kconstant(name) (gSystemInfo.kernelConstant.name)
