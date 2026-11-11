@@ -15,6 +15,10 @@
 NSString *getAppIdentifierFromPath(const char *path);
 NSSet *builtinApps(void);
 
+// Test-only stub: the diagnostics snapshot lives in jailbreakd.c, which these
+// focused units deliberately do not link.
+const char *jbdIsolationDiagnostics(void) { return "test-stub"; }
+
 static char rootPath[PATH_MAX];
 static unsigned checks, configReads, infoReads;
 static NSData *replaceAfterRead;

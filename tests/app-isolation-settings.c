@@ -8,6 +8,10 @@
 #include <string.h>
 
 struct system_info gSystemInfo = {0};
+// Test-only stub: the diagnostics snapshot lives in jailbreakd.c, which these
+// focused units deliberately do not link.
+const char *jbdIsolationDiagnostics(void) { return "test-stub"; }
+
 struct official_settings_layout { bool markAppsAsDebugged; double jetsamMultiplier; };
 _Static_assert(sizeof(((struct system_info *)0)->jailbreakSettings) == sizeof(struct official_settings_layout), "settings ABI size unchanged");
 _Static_assert(offsetof(struct system_info, jailbreakSettings.jetsamMultiplier) - offsetof(struct system_info, jailbreakSettings) == offsetof(struct official_settings_layout, jetsamMultiplier), "jetsam offset unchanged");
