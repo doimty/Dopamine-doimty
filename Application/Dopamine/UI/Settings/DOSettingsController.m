@@ -261,14 +261,14 @@
             
             /**************************** roothide specfic *********************************/
             NSString* namedesc = DOLocalizedString(@"Enable dyld patch");
-            if(envManager.isArm64e && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion==15) {
+            BOOL isolationCapable = envManager.isArm64e && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15;
+            if (isolationCapable) {
                 namedesc = DOLocalizedString(@"Dyld Patch(Spinlock Fix)");
             }
             PSSpecifier *dyldPatchSpecifier = [PSSpecifier preferenceSpecifierNamed:namedesc target:self set:@selector(setDyldPatchEnabled:specifier:) get:@selector(readDyldPatchEnabled:) detail:nil cell:PSSwitchCell edit:nil];
             [dyldPatchSpecifier setProperty:@YES forKey:@"enabled"];
             [dyldPatchSpecifier setProperty:@"dyldPatchEnabled" forKey:@"key"];
             [dyldPatchSpecifier setProperty:@NO forKey:@"default"];
-            [specifiers addObject:dyldPatchSpecifier];
             /**************************** roothide specfic *********************************/
             
             
@@ -281,10 +281,13 @@
             [jetsamSpecifier setProperty:@"jetsamOptionTitles" forKey:@"titlesDataSource"];
             [specifiers addObject:jetsamSpecifier];
 
-            if (envManager.isArm64e && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15) {
+            if (isolationCapable) {
+                // Dyld patching and blacklist isolation belong to one feature area;
+                // keep them in a single group instead of two separate rows.
                 PSSpecifier *isolationGroup = [PSSpecifier emptyGroupSpecifier];
                 [isolationGroup setProperty:DOLocalizedString(@"Settings_Doimty_Isolation_Footer") forKey:@"footerText"];
                 [specifiers addObject:isolationGroup];
+                [specifiers addObject:dyldPatchSpecifier];
                 PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Doimty_Isolation") target:self set:@selector(setDoimtyIsolationEnabled:specifier:) get:@selector(readDoimtyIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
                 [isolationSpecifier setProperty:@(!envManager.isJailbroken || jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SUPPORTED_KEY)) forKey:@"enabled"];
                 [isolationSpecifier setProperty:@DOIMTY_ISOLATION_PREFERENCE_KEY forKey:@"key"];
@@ -292,6 +295,8 @@
                 isolationSpecifier.identifier = @"doimtyBlacklistIsolation";
                 [specifiers addObject:isolationSpecifier];
                 [specifiers addObject:[PSSpecifier emptyGroupSpecifier]];
+            } else {
+                [specifiers addObject:dyldPatchSpecifier];
             }
             
             if (!envManager.isJailbroken && !envManager.isInstalledThroughTrollStore) {

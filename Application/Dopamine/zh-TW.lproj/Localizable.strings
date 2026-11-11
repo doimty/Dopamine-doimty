@@ -133,3 +133,7 @@
 "Status_Title_Select_Package_Managers" = "選擇套件管理器";
 "Select_Package_Managers_Install_Message" = "如果不確定該選哪一個，請選擇 Sileo";
 "Continue" = "繼續";
+
+// Filled in by the doimty localization pass
+"Hint_Hide_Jailbreak_Jailbroken" = "「隱藏越獄」可暫時關閉越獄，藉此避開部分越獄偵測。它並不徹底，也無法隱藏所有痕跡，但能讓裝置回到接近重新開機後、尚未越獄的狀態。它不能取代 RootHide。此選項可能引發問題，官方不提供支援，請自行承擔風險。";
+"Rebuilding Icon Cache" = "正在重建圖示快取";

@@ -128,3 +128,18 @@
 "Status_Title_Select_Package_Managers" = "请选择包管理器";
 "Select_Package_Managers_Install_Message" = "如果你不确定选择哪一个比较好，请选择 Sileo";
 "Continue" = "继续";
+
+// Filled in by the doimty localization pass
+"Settings_Allow_Old_arm64e_ABI_Libraries" = "允许旧版 arm64e ABI 库";
+"Hint_Hide_Jailbreak_Jailbroken" = "“隐藏越狱”可用于临时关闭越狱来绕过部分越狱检测。它并不彻底，也无法隐藏所有痕迹，但能让设备回到接近重启后、尚未越狱的状态。它不能替代 RootHide。此选项可能引发问题，官方不提供支持，请自行承担风险。";
+"Section_Boot_Logo" = "启动图标";
+"Enabled" = "启用";
+"Custom_Boot_Logo" = "自定义启动图标";
+"Select_Image" = "选择图片";
+"Password_Auth_Required" = "修改 mobile 密码需要验证身份。";
+"Respring_Required" = "需要重启 SpringBoard";
+"Respring_Required_Message" = "所选内核漏洞需要创建连续的内存映射，在此设备上只能借助会重启 SpringBoard 的特殊变通方法完成。重启完成后，请重新打开 Dopamine 并再次点按“越狱”。";
+"Respring_Required_Notice_A8" = "在你的设备上，这个变通方法并非每次都有效，可能需要重复执行几次，直到此提示不再出现。";
+"Apply_Workaround" = "应用变通方法";
+"Respring_Cancel" = "取消";
+"Rebuilding Icon Cache" = "重建图标缓存";

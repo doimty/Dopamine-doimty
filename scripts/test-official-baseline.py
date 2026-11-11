@@ -15,6 +15,7 @@ FIXTURE = Path(__file__).resolve().parents[1] / "tests/official-baseline.json"
 OWN_KEY = "doimtyBlacklistIsolationEnabled"
 MUTABLE = {
     ".github/workflows/main.yml", "Application/Makefile",
+    "Application/Dopamine.xcodeproj/project.pbxproj",
     "Application/Dopamine/Jailbreak/DOJailbreaker.m",
     "Application/Dopamine/UI/Settings/DOSettingsController.m",
     "BaseBin/jailbreakd/src/main.m", "BaseBin/launchdhook/src/roothider.m",
@@ -250,6 +251,14 @@ def verify(root, variant, fixture_path=FIXTURE, source_commit=None, workflow_com
             if line and "CFBundleIdentifier" not in line:
                 require(line in application.splitlines(), "official Application build/resource/rename line changed: " + line)
         require("com.doimty.dopamine" in application and "CFBundleVersion" in application and '"34"' in application, "own app identity/build missing")
+        pbx_rel = "Application/Dopamine.xcodeproj/project.pbxproj"
+        pbx_text = read_source(root, pbx_rel)
+        require(pbx_text.count("ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon_Official;") == 2,
+                "own default icon must be selected for both configurations")
+        reverted = pbx_text.replace("ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon_Official;",
+                                    "ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;")
+        require(digest(reverted.encode()) == fixture["files"][pbx_rel]["sha256"],
+                "project file changed beyond the default icon selection")
         require(OWN_KEY in read_source(root, "BaseBin/libjailbreak/src/doimty_isolation.h"), "own setting key missing")
     result = {"schema_version": 1, "variant": variant, "SOURCE_COMMIT": commit,
               "WORKFLOW_COMMIT": workflow_commit or commit, "official_baseline_commit": BASE,

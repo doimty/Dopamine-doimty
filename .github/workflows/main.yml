@@ -209,7 +209,6 @@ jobs:
         with:
           name: ${{ matrix.label }}
           path: |
-            dist/${{ matrix.label }}-*.ipa
             dist/${{ matrix.label }}-*.tipa
             dist/${{ matrix.label }}-manifest.json
             dist/toolchain.log
