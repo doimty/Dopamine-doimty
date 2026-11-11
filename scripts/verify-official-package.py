@@ -197,14 +197,14 @@ def load_guard():
     return module
 
 
-def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit):
+def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit, require_clean=False):
     identity = file_identity(ipa)
     require(identity == file_identity(tipa), "IPA and TIPA bytes differ")
     mode = "control" if variant in ("control", "official-control") else "isolation"
     label = "official-control" if mode == "control" else "doimty-isolation"
     require(re.fullmatch(r"[0-9a-f]{40}", source_commit) and re.fullmatch(r"[0-9a-f]{40}", workflow_commit), "full commit identities required")
     source = load_guard().verify(source_root.resolve(), mode, source_commit=source_commit,
-                                 workflow_commit=workflow_commit)
+                                 workflow_commit=workflow_commit, require_clean=require_clean)
     with zipfile.ZipFile(ipa) as archive:
         inventory = zip_inventory(archive)
         roots = [path[:-11] for path in inventory if re.fullmatch(r"Payload/[^/]+\.app/Info\.plist", path)]
@@ -265,7 +265,9 @@ def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit):
         if mode == "control":
             require(not any(presence.values()), "own setting key present in official control")
         else:
-            for path in ("basebin/launchdhook.dylib", "basebin/libjailbreak.dylib"):
+            # The key compiles into the launchd hook (backend settings) and the app
+            # (preference plumbing); libjailbreak itself does not reference it.
+            for path in ("basebin/launchdhook.dylib", app + "/" + executable):
                 require(presence[path], "compiled own setting key missing: " + path)
         zip_records = [{"path": path, "bytes": member.file_size, "crc32": "%08x" % member.CRC,
                         "mode": oct(member.external_attr >> 16), "compressed_bytes": member.compress_size}
@@ -322,6 +324,7 @@ def main():
     parser.add_argument("--source-commit")
     parser.add_argument("--workflow-commit")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--require-clean", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     try:
@@ -330,7 +333,7 @@ def main():
         require(all((args.ipa, args.tipa, args.source_root, args.variant, args.source_commit,
                      args.workflow_commit, args.output)), "all package/source/commit/output arguments are required")
         result = verify(args.ipa, args.tipa, args.source_root, args.variant,
-                        args.source_commit, args.workflow_commit)
+                        args.source_commit, args.workflow_commit, args.require_clean)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
         print("PASS", result["variant"], result["ipa"]["sha256"], "manifest", args.output)
     except (ValueError, KeyError, OSError, UnicodeError, struct.error, zipfile.BadZipFile, tarfile.TarError) as error:
