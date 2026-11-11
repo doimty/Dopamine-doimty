@@ -14,9 +14,12 @@ ln -s "$ROOT/BaseBin/libroothider/src" "$WORK/include/libroothider"
 ln -s "$ROOT/BaseBin/libjailbreak/src/info.h" "$WORK/include/libjailbreak/info.h"
 ln -s "$ROOT/BaseBin/libjailbreak/src/doimty_isolation.h" "$WORK/include/libjailbreak/doimty_isolation.h"
 CC="${CC:-$(xcrun --find clang)}"
+# An explicit host sysroot keeps the macOS SDK headers visible no matter which
+# clang xcrun resolves on the runner.
+HOST_SDK="$(xcrun --sdk macosx --show-sdk-path)"
 SAN=()
 if [[ "${SANITIZE:-0}" == 1 ]]; then SAN=(-fsanitize=address,undefined -fno-omit-frame-pointer); fi
-COMMON=(-std=c11 -Wall -Wextra "${SAN[@]}")
+COMMON=(-std=c11 -Wall -Wextra -isysroot "$HOST_SDK" "${SAN[@]}")
 "$CC" "${COMMON[@]}" -Werror "$ROOT/tests/app-isolation-spawn.c" \
     "$ROOT/BaseBin/launchdhook/src/app_isolation_spawn.c" -o "$WORK/spawn"
 "$WORK/spawn"
@@ -24,11 +27,11 @@ COMMON=(-std=c11 -Wall -Wextra "${SAN[@]}")
     "$ROOT/BaseBin/launchdhook/src/app_isolation_policy.c" -o "$WORK/environment"
 "$WORK/environment"
 "$CC" "${COMMON[@]}" -Wno-nullability-completeness -I"$WORK/include" \
-    "$ROOT/tests/app-isolation-settings.c" \
+    -isysroot "$HOST_SDK" "$ROOT/tests/app-isolation-settings.c" \
     "$ROOT/BaseBin/launchdhook/src/jbserver/jbsettings.c" -o "$WORK/settings"
 "$WORK/settings"
 "$CC" "${COMMON[@]}" -fobjc-arc -fblocks -Werror -Wno-deprecated-declarations \
-    -Wno-nullability-completeness -framework Foundation \
+    -Wno-nullability-completeness -framework Foundation -isysroot "$HOST_SDK" \
     -I"$ROOT/tests/app-isolation-integration/include" -I"$WORK/include" \
     -I"$ROOT/BaseBin/libjailbreak/src" -I"$ROOT/BaseBin/libroothider/src" \
     -I"$ROOT/BaseBin/launchdhook/src" \

@@ -42,6 +42,8 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
           xcrun --sdk iphoneos --show-sdk-path
           clang --version
+          # Host builds in this job all need the macOS SDK headers.
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
         shell: bash
 
       - name: Official source guard (isolation variant)
