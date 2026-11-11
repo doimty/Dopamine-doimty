@@ -143,3 +143,7 @@
 "Apply_Workaround" = "应用变通方法";
 "Respring_Cancel" = "取消";
 "Rebuilding Icon Cache" = "重建图标缓存";
+
+// Isolation status line
+"Settings_Doimty_Isolation_Status" = "iOS 15 arm64e：%@ · Dyld 补丁：%@ · 隔离：%@";
+"Doimty_Off" = "关";

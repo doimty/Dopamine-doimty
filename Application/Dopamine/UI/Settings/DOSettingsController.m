@@ -38,6 +38,10 @@
 - (void)viewWillAppear:(BOOL)arg1
 {
     [super viewWillAppear:arg1];
+    // The isolation status line is live state, so rebuild the list each time.
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        _specifiers = nil;
+    }
     if (_lastKnownTheme != [[DOThemeManager sharedInstance] enabledTheme].key)
     {
         [DOSceneDelegate relaunch];
@@ -285,7 +289,8 @@
                 // Dyld patching and blacklist isolation belong to one feature area;
                 // keep them in a single group instead of two separate rows.
                 PSSpecifier *isolationGroup = [PSSpecifier emptyGroupSpecifier];
-                [isolationGroup setProperty:DOLocalizedString(@"Settings_Doimty_Isolation_Footer") forKey:@"footerText"];
+                [isolationGroup setProperty:[NSString stringWithFormat:@"%@\n\n%@",
+                    DOLocalizedString(@"Settings_Doimty_Isolation_Footer"), [self doimtyIsolationStatusText]] forKey:@"footerText"];
                 [specifiers addObject:isolationGroup];
                 [specifiers addObject:dyldPatchSpecifier];
                 PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Doimty_Isolation") target:self set:@selector(setDoimtyIsolationEnabled:specifier:) get:@selector(readDoimtyIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
@@ -541,8 +546,30 @@
     }
 }
 
-- (id)readDoimtyIsolationEnabled:(PSSpecifier *)specifier
+// Localized on/off words for the status line.
+- (NSString *)doimtyOnOff:(BOOL)value
 {
+    return value ? DOLocalizedString(@"Enabled") : DOLocalizedString(@"Doimty_Off");
+}
+
+// Shows every precondition so an inactive feature is self-explanatory.
+- (NSString *)doimtyIsolationStatusText
+{
+    BOOL supported = [DOEnvironmentManager sharedManager].isArm64e &&
+        NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15;
+    BOOL dyldOn = NO, isoOn = NO;
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        dyldOn = jbclient_jbsettings_get_bool("dyldPatchEnabled");
+        isoOn = jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SETTING_KEY);
+    } else {
+        isoOn = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@DOIMTY_ISOLATION_PREFERENCE_KEY fallback:NO];
+        dyldOn = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"dyldPatchEnabled" fallback:NO];
+    }
+    return [NSString stringWithFormat:DOLocalizedString(@"Settings_Doimty_Isolation_Status"),
+        [self doimtyOnOff:supported], [self doimtyOnOff:dyldOn], [self doimtyOnOff:isoOn]];
+}
+
+- (id)readDoimtyIsolationEnabled:(PSSpecifier *)specifier{
     if ([DOEnvironmentManager sharedManager].isJailbroken) {
         return @(jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SETTING_KEY));
     }

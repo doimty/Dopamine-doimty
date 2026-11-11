@@ -133,3 +133,7 @@
 "Status_Title_Select_Package_Managers" = "Select Package Manager(s)";
 "Select_Package_Managers_Install_Message" = "If you are unsure which one to select, select Sileo";
 "Continue" = "Continue";
+
+// Isolation status line
+"Settings_Doimty_Isolation_Status" = "iOS 15 arm64e: %@ · Dyld patch: %@ · Isolation: %@";
+"Doimty_Off" = "off";

@@ -188,3 +188,7 @@
 "Bypassing PAC (%@)" = "正在繞過 PAC (%@)";
 "Bypassing PPL (%@)" = "正在繞過 PPL (%@)";
 "Bypassing SPTM (%@)" = "正在繞過 SPTM (%@)";
+
+// Isolation status line
+"Settings_Doimty_Isolation_Status" = "iOS 15 arm64e：%@ · Dyld 修補：%@ · 隔離：%@";
+"Doimty_Off" = "關";
