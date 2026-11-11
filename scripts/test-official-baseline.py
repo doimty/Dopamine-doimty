@@ -16,6 +16,7 @@ OWN_KEY = "doimtyBlacklistIsolationEnabled"
 MUTABLE = {
     ".github/workflows/main.yml", "Application/Makefile",
     "Application/Dopamine.xcodeproj/project.pbxproj",
+    "BaseBin/_external/basebin/.version-roothide",
     "Application/Dopamine/Jailbreak/DOJailbreaker.m",
     "Application/Dopamine/UI/Settings/DOSettingsController.m",
     "BaseBin/jailbreakd/src/main.m", "BaseBin/launchdhook/src/roothider.m",
