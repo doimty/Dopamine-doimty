@@ -213,8 +213,12 @@ def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit, requ
         info = plistlib.loads(archive.read(app + "/Info.plist"))
         expected_id = "com.opa334.Dopamine-roothide" if mode == "control" else "com.doimty.dopamine"
         require(info.get("CFBundleIdentifier") == expected_id, "unexpected app bundle identifier")
-        require(info.get("CFBundleShortVersionString") == "3.0.13-30", "unexpected ShortVersion")
-        require(mode == "control" or str(info.get("CFBundleVersion")) == "34", "unexpected own build version")
+        base_version = (source_root / "BaseBin/_external/basebin/.version").read_text(encoding="utf-8").strip()
+    revision = (source_root / "BaseBin/_external/basebin/.version-roothide").read_text(encoding="utf-8").strip()
+    expected_version = base_version + "-" + revision
+    require(info.get("CFBundleShortVersionString") == expected_version, "unexpected ShortVersion")
+        require(mode == "control" or str(info.get("CFBundleVersion")) == revision,
+                "own build version must equal the shipped revision")
         executable = info.get("CFBundleExecutable")
         require(isinstance(executable, str) and executable and "/" not in executable and "\\" not in executable and executable not in (".", ".."), "invalid main executable name")
         main_path = app + "/" + executable
@@ -235,7 +239,7 @@ def verify(ipa, tipa, source_root, variant, source_commit, workflow_commit, requ
         tar_bytes = archive.read(tar_path)
         basebin, tar_records = tar_inventory(tar_bytes)
         versions = {}
-        for filename, expected in ((".version", "3.0.13"), (".version-roothide", "30")):
+        for filename, expected in ((".version", base_version), (".version-roothide", revision)):
             key = "basebin/" + filename
             require(key in basebin and basebin[key][1] is not None, "basebin version missing")
             value = basebin[key][1].decode("ascii").strip()
