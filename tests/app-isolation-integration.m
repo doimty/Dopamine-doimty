@@ -11,6 +11,10 @@
 #error Test runner must supply its private canonical system-temporary container root.
 #endif
 
+// Declared here because the launchdhook include path also ships a common.h.
+NSString *getAppIdentifierFromPath(const char *path);
+NSSet *builtinApps(void);
+
 static char rootPath[PATH_MAX];
 static unsigned checks, configReads, infoReads;
 static NSData *replaceAfterRead;
