@@ -46,4 +46,8 @@ int jbdAppIsolationRepair(pid_t pid);
 mach_port_t jbdCheckinWithIsolation(mach_port_t isolation_port);
 int jbdRegisterIsolationHelper(audit_token_t *token, xpc_object_t capability);
 
+/* Read-only operator diagnostics: registration/readiness plus last spawn decision. */
+const char *jbdIsolationDiagnostics(void);
+void jbdIsolationNoteDecision(int strict, int blacklisted, int supported, int readySkip);
+
 #endif // JAILBREAKD_H

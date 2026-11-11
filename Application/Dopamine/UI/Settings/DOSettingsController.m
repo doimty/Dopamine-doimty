@@ -7,6 +7,7 @@
 
 #import "DOSettingsController.h"
 #import <objc/runtime.h>
+#include <xpc/xpc.h>
 #import <Photos/Photos.h>
 #import <libjailbreak/util.h>
 #import <libjailbreak/doimty_isolation.h>
@@ -575,7 +576,7 @@
         NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15;
     BOOL dyldOn = NO, isoOn = NO;
     if ([DOEnvironmentManager sharedManager].isJailbroken) {
-        dyldOn = jbclient_jbsettings_get_bool("dyldPatchEnabled");
+        dyldOn = jbclient_dyld_patch_enabled();
         isoOn = jbclient_jbsettings_get_bool(DOIMTY_ISOLATION_SETTING_KEY);
     } else {
         isoOn = [[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@DOIMTY_ISOLATION_PREFERENCE_KEY fallback:NO];
@@ -583,8 +584,19 @@
     }
     NSString *pattern = DOLocalizedString(@"Settings_Doimty_Isolation_Status");
     if (!pattern) return @"";
-    return [NSString stringWithFormat:pattern, [self doimtyOnOff:supported],
+    NSString *line = [NSString stringWithFormat:pattern, [self doimtyOnOff:supported],
         [self doimtyOnOff:dyldOn], [self doimtyOnOff:isoOn]];
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        xpc_object_t value = NULL;
+        if (jbclient_jbsettings_get(DOIMTY_ISOLATION_DIAGNOSTICS_KEY, &value) == 0 && value) {
+            if (xpc_get_type(value) == XPC_TYPE_STRING) {
+                const char *text = xpc_string_get_string_ptr(value);
+                if (text) line = [line stringByAppendingFormat:@"\n%s", text];
+            }
+            xpc_release(value);
+        }
+    }
+    return line;
 }
 
 - (id)readDoimtyIsolationEnabled:(PSSpecifier *)specifier{

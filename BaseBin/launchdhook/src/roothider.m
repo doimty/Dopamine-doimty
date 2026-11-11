@@ -10,6 +10,7 @@
 #include <sys/sysctl.h>
 
 #include <libroothider/libroothider.h>
+#include <libroothider/jailbreakd.h>
 #include <libjailbreak/libjailbreak.h>
 #include <libjailbreak/trustcache_fs.h>
 #include <libjailbreak/jbserver.h>
@@ -543,6 +544,8 @@ int roothide_launchd___posix_spawn_prehook(pid_t *restrict pidp, const char *res
         &isolationContext, isolation_helper_ready, NULL);
     bool roothideBlacklisted = isolationContext.effective_blacklisted;
     bool strictIsolation = isolationRoute == APP_ISOLATION_ROUTE_BLACKLIST_STRICT;
+    jbdIsolationNoteDecision(strictIsolation ? 1 : 0, roothideBlacklisted ? 1 : 0,
+        isolationContext.ios15_arm64e ? 1 : 0, isolationContext.global_isolation_enabled ? 0 : 1);
 	if (choicyBlocked || roothideBlacklisted)
 	{
 		int ret;

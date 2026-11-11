@@ -1,6 +1,7 @@
 #include "jbsettings.h"
 #include <libjailbreak/info.h>
 #include <libjailbreak/doimty_isolation.h>
+#include <libroothider/jailbreakd.h>
 #include <errno.h>
 #include <string.h>
 
@@ -34,6 +35,10 @@ int jbsettings_get(const char *key, xpc_object_t *valueOut)
 	}
 	else if (!strcmp(key, DOIMTY_ISOLATION_SETTING_KEY)) {
 		*valueOut = xpc_bool_create(doimty_blacklist_isolation_enabled());
+		return 0;
+	}
+	else if (!strcmp(key, DOIMTY_ISOLATION_DIAGNOSTICS_KEY)) {
+		*valueOut = xpc_string_create(jbdIsolationDiagnostics());
 		return 0;
 	}
 	else if (!strcmp(key, DOIMTY_ISOLATION_SUPPORTED_KEY)) {

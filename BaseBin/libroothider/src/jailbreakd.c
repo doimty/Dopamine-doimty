@@ -1,4 +1,5 @@
 #include <spawn.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <assert.h>
 #include <pthread.h>
@@ -47,6 +48,41 @@ static int isolationHelperPidversion;
 static uint64_t isolationGeneration;
 static bool isolationVerified;
 
+/* Last spawn decision, recorded for the read-only diagnostics string. */
+static _Atomic int diagStrict, diagBlacklisted, diagSupported, diagReadySkip, diagDecisions;
+static _Atomic int diagRegistrations, diagRegisterFailures;
+
+void jbdIsolationNoteDecision(int strict, int blacklisted, int supported, int readySkip)
+{
+    __atomic_store_n(&diagStrict, strict, __ATOMIC_RELAXED);
+    __atomic_store_n(&diagBlacklisted, blacklisted, __ATOMIC_RELAXED);
+    __atomic_store_n(&diagSupported, supported, __ATOMIC_RELAXED);
+    __atomic_store_n(&diagReadySkip, readySkip, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&diagDecisions, 1, __ATOMIC_RELAXED);
+}
+
+/* Stable snapshot for jbsettings; values only, never behavior. */
+const char *jbdIsolationDiagnostics(void)
+{
+    static char buffer[192];
+    pthread_mutex_lock(&isolationStateLock);
+    bool verified = isolationVerified;
+    bool portValid = MACH_PORT_VALID(isolationService);
+    int helperPid = isolationExpectedPid;
+    pthread_mutex_unlock(&isolationStateLock);
+    snprintf(buffer, sizeof(buffer),
+        "reg=%d/%d ver=%d port=%d pid=%d dec=%d strict=%d bl=%d sup=%d skip=%d",
+        __atomic_load_n(&diagRegistrations, __ATOMIC_RELAXED),
+        __atomic_load_n(&diagRegisterFailures, __ATOMIC_RELAXED),
+        verified ? 1 : 0, portValid ? 1 : 0, helperPid,
+        __atomic_load_n(&diagDecisions, __ATOMIC_RELAXED),
+        __atomic_load_n(&diagStrict, __ATOMIC_RELAXED),
+        __atomic_load_n(&diagBlacklisted, __ATOMIC_RELAXED),
+        __atomic_load_n(&diagSupported, __ATOMIC_RELAXED),
+        __atomic_load_n(&diagReadySkip, __ATOMIC_RELAXED));
+    return buffer;
+}
+
 static void isolation_clear_locked(void)
 {
     if (MACH_PORT_VALID(isolationService)) mach_port_deallocate(mach_task_self(), isolationService);
@@ -70,7 +106,11 @@ static void isolation_invalidate_generation(uint64_t generation, bool retire)
  * The actual helper incarnation comes from XPC's kernel audit token, not payload. */
 int jbdRegisterIsolationHelper(audit_token_t *token, xpc_object_t capability)
 {
-    if (!token || !capability || xpc_get_type(capability) != XPC_TYPE_DICTIONARY) return EINVAL;
+    __atomic_fetch_add(&diagRegistrations, 1, __ATOMIC_RELAXED);
+    if (!token || !capability || xpc_get_type(capability) != XPC_TYPE_DICTIONARY) {
+        __atomic_fetch_add(&diagRegisterFailures, 1, __ATOMIC_RELAXED);
+        return EINVAL;
+    }
     extern int audit_token_to_pidversion(audit_token_t);
     pid_t pid = audit_token_to_pid(*token);
     int pidversion = audit_token_to_pidversion(*token);
@@ -94,6 +134,7 @@ int jbdRegisterIsolationHelper(audit_token_t *token, xpc_object_t capability)
         }
         if (MACH_PORT_VALID(port)) mach_port_deallocate(mach_task_self(), port);
     }
+    if (result != 0) __atomic_fetch_add(&diagRegisterFailures, 1, __ATOMIC_RELAXED);
     return result;
 }
 
