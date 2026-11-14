@@ -6,6 +6,9 @@ on:
       - 'isolation/3.0.12-*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: legacy-${{ github.ref }}
   cancel-in-progress: true
