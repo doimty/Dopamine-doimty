@@ -7,6 +7,7 @@
 
 #import "DOSettingsController.h"
 #import <objc/runtime.h>
+#include <xpc/xpc.h>
 #import <Photos/Photos.h>
 #import <libjailbreak/util.h>
 #import "DOUIManager.h"
