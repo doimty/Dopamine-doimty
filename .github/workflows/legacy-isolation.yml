@@ -1,0 +1,132 @@
+name: "build legacy 3.0.12 isolation"
+
+on:
+  push:
+    branches:
+      - 'isolation/3.0.12-*'
+      - 'replay/*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: legacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26-intel
+    steps:
+      - name: Xcode Setup
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Record toolchain identity
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          {
+            echo "source_commit=$(git rev-parse HEAD)"
+            echo "runner=${{ runner.os }}-${{ runner.arch }}"
+            xcodebuild -version
+            echo "iphoneos_sdk=$(xcrun --sdk iphoneos --show-sdk-version)"
+            clang --version
+          } | tee dist/toolchain.log
+
+      - name: Install Procursus
+        uses: dhinakg/procursus-action@main
+        with:
+          packages: ldid findutils sed coreutils make
+
+      - name: Install better GNU Make
+        run: |
+          brew install make
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+
+      - name: Install THEOS
+        run: |
+          set -x
+          export BASEDIR="$(pwd)"
+          export THEOS="${BASEDIR}/theos"
+          mkdir -p $THEOS
+          curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos >> install-theos.sh
+          gsed -E "/^\s*get_theos\s*$/,+1 s/^(\s*)(get_sdks)\s*$/\1mkdir -p \${THEOS}\/sdks\n\1touch \${THEOS}\/sdks\/sdk\n\1\2/g" -i install-theos.sh
+          bash install-theos.sh
+          curl -L https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz --output $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
+          gunzip $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
+          gtar -xf $THEOS/sdks/iPhoneOS16.5.sdk.tar -C $THEOS/sdks
+          rm $THEOS/sdks/iPhoneOS16.5.sdk.tar
+
+      - name: Build and install host trustcache
+        run: |
+          set -x
+          git clone https://github.com/CRKatri/trustcache
+          cd trustcache
+          HOST_ARCH=$(uname -m)
+          export CFLAGS="$CFLAGS -I$(brew --prefix openssl)/include -arch $HOST_ARCH"
+          export LDFLAGS="$LDFLAGS -L$(brew --prefix openssl)/lib -arch $HOST_ARCH"
+          gmake -j$(sysctl -n hw.logicalcpu) OPENSSL=1
+          sudo cp trustcache /opt/procursus/bin/
+
+      - name: Install libarchive
+        run: brew install libarchive
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          export BASEDIR="$(pwd)"
+          export THEOS="${BASEDIR}/theos"
+          gmake -j$(sysctl -n hw.logicalcpu) NIGHTLY=1
+          VERSION="$(cat ./BaseBin/_external/basebin/.version)-$(cat ./BaseBin/_external/basebin/.version-roothide)"
+          STAMP=$(TZ=UTC date +'%Y.%m.%d-%H.%M.%S')
+          test -f "./Application/Dopamine.ipa"
+          test -f "./Application/Dopamine.tipa"
+          cp ./Application/Dopamine.ipa  "dist/doimty-3012-isolation-${VERSION}-${STAMP}.ipa"
+          cp ./Application/Dopamine.tipa "dist/doimty-3012-isolation-${VERSION}-${STAMP}.tipa"
+          echo "built ${VERSION}"
+
+      - name: Verify package
+        run: |
+          set -euo pipefail
+          IPA=$(ls dist/doimty-3012-isolation-*.ipa)
+          TIPA=$(ls dist/doimty-3012-isolation-*.tipa)
+          python3 scripts/verify-legacy-package.py \
+            --ipa "$IPA" --tipa "$TIPA" \
+            --commit "${{ github.sha }}" \
+            --output dist/doimty-3012-isolation-manifest.json
+
+      - name: Publish release asset
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'isolation/3.0.12')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="doimty-3012-isolation-${{ github.sha }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/doimty-3012-isolation-*.tipa --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$TAG" dist/doimty-3012-isolation-*.tipa \
+              --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" \
+              --title "legacy 3.0.12 isolation ${GITHUB_SHA}" \
+              --notes "Rebuild of the proven 3.0.12 isolation line with an advanced RootHide revision, so /basebin is replaced on install."
+          fi
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[] | "\(.name) \(.size)"'
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-3012-isolation
+          path: |
+            dist/doimty-3012-isolation-*.tipa
+            dist/doimty-3012-isolation-manifest.json
+            dist/toolchain.log
+          if-no-files-found: error
