@@ -9,6 +9,7 @@
 
 #include <libjailbreak/libjailbreak.h>
 #include "jailbreakd.h"
+#include "app_isolation_reply.h"
 #include "common.h"
 #include "log.h"
 
@@ -453,4 +454,40 @@ int jbdExecTraceCancel(const char* execfile, bool* detached)
 	int result = xpc_dictionary_get_int64(reply, "result");
 	xpc_release(reply);
 	return result;
+}
+
+// The strict isolation route must not be selected before the helper can answer.
+bool jbdIsolationHelperReady(void)
+{
+    return MACH_PORT_VALID(gJailbreakdPort);
+}
+
+int jbdAppIsolationRepair(pid_t pid)
+{
+    if (getpid() != 1 || pid <= 1) return EPERM;
+    xpc_object_t message = xpc_dictionary_create_empty();
+    if (!message) return ENOMEM;
+    xpc_dictionary_set_uint64(message, "id", JBD_MSG_APP_ISOLATION_REPAIR);
+    xpc_dictionary_set_int64(message, "pid", pid);
+    xpc_dictionary_set_uint64(message, "isolation-protocol", RH_APP_ISOLATION_PROTOCOL);
+    mach_port_t isolationPort = gJailbreakdPort;
+    if (!MACH_PORT_VALID(isolationPort) ||
+        mach_port_mod_refs(mach_task_self(), isolationPort, MACH_PORT_RIGHT_SEND, 1) != KERN_SUCCESS) {
+        xpc_release(message);
+        return ENOTCONN;
+    }
+    xpc_object_t pipe = xpc_pipe_create_from_port(isolationPort, 0);
+    if (!pipe) {
+        mach_port_deallocate(mach_task_self(), isolationPort);
+        xpc_release(message);
+        return ENOTCONN;
+    }
+    xpc_object_t reply = NULL;
+    int transport = xpc_pipe_routine(pipe, message, &reply);
+    xpc_release(pipe);
+    mach_port_deallocate(mach_task_self(), isolationPort);
+    xpc_release(message);
+    int result = transport == 0 ? rh_app_isolation_reply_status(reply) : EIO;
+    if (reply) xpc_release(reply);
+    return result;
 }

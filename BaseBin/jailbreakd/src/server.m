@@ -66,6 +66,37 @@ void jailbreakd_received_message(mach_port_t port)
 					break;
 				}
 
+				case JBD_MSG_APP_ISOLATION_REPAIR: {
+                    int result = EPERM;
+                    bool applied = false;
+                    xpc_dictionary_set_uint64(reply, "isolation-protocol", RH_APP_ISOLATION_PROTOCOL);
+                    xpc_dictionary_set_bool(reply, "repair-applied", false);
+                    xpc_object_t protocol = xpc_dictionary_get_value(message, "isolation-protocol");
+                    xpc_object_t target = xpc_dictionary_get_value(message, "pid");
+                    bool supported = false;
+#ifdef __arm64e__
+                    if (!__builtin_available(iOS 16.0, *)) supported = true;
+#endif
+                    if (clientPid == 1 && supported && dyld_patch_enabled() &&
+                        protocol && xpc_get_type(protocol) == XPC_TYPE_UINT64 &&
+                        xpc_uint64_get_value(protocol) == RH_APP_ISOLATION_PROTOCOL &&
+                        target && xpc_get_type(target) == XPC_TYPE_INT64) {
+                        int64_t requested = xpc_int64_get_value(target);
+                        if (requested > 1 && requested <= INT_MAX) {
+                            pid_t pid = (pid_t)requested;
+                            bool paused = false;
+                            if (proc_get_ppid(pid) == 1 && proc_paused(pid, &paused) == 0 && paused) {
+                                result = proc_fix_spinlock_strict(pid) == 0 ? 0 : EIO;
+                                applied = result == 0;
+                            } else result = EBUSY;
+                        } else result = EINVAL;
+                    }
+                    xpc_dictionary_set_int64(reply, "result", result);
+                    xpc_dictionary_set_bool(reply, "repair-applied", applied);
+                    // The launchd caller alone owns SIGCONT after validating this acknowledgment.
+                    break;
+                }
+
 				case JBD_MSG_SPAWN_PATCH_CHILD: {
 					int64_t result = 0;
 					pid_t pid = xpc_dictionary_get_int64(message, "pid");
