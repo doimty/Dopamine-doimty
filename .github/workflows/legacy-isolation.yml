@@ -87,10 +87,12 @@ jobs:
           gmake -j$(sysctl -n hw.logicalcpu) NIGHTLY=1
           VERSION="$(cat ./BaseBin/_external/basebin/.version)-$(cat ./BaseBin/_external/basebin/.version-roothide)"
           STAMP=$(TZ=UTC date +'%Y.%m.%d-%H.%M.%S')
-          test -f "./Application/Dopamine.ipa"
-          test -f "./Application/Dopamine.tipa"
-          cp ./Application/Dopamine.ipa  "dist/doimty-3012-isolation-${VERSION}-${STAMP}.ipa"
-          cp ./Application/Dopamine.tipa "dist/doimty-3012-isolation-${VERSION}-${STAMP}.tipa"
+          SRC_IPA="./Application/Dopamine-roothide-${VERSION}.ipa"
+          SRC_TIPA="./Application/Dopamine-roothide-${VERSION}.tipa"
+          test -f "$SRC_IPA"
+          test -f "$SRC_TIPA"
+          cp "$SRC_IPA"  "dist/doimty-3012-isolation-${VERSION}-${STAMP}.ipa"
+          cp "$SRC_TIPA" "dist/doimty-3012-isolation-${VERSION}-${STAMP}.tipa"
           echo "built ${VERSION}"
 
       - name: Verify package
