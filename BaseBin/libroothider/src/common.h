@@ -39,6 +39,9 @@ char* proc_get_identifier(pid_t pid, char buffer[255]);
 bool isBlacklistedApp(const char* identifier);
 bool isBlacklistedPath(const char* path);
 
+// 单个 App 显式关闭黑名单隔离（appconfigSpinlockSafe = false）。
+bool appSpinlockIsolationOptedOut(const char *path);
+
 bool isBlacklistedToken(audit_token_t* token);
 bool isBlacklistedPid(pid_t pid);
 
