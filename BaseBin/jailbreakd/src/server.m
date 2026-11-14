@@ -4,6 +4,8 @@
 
 #include <libjailbreak/libjailbreak.h>
 #include <libroothider/libroothider.h>
+#include <libroothider/app_isolation_reply.h>
+#include <libroothider/common.h>
 
 void jailbreakd_reply_message(JBD_MESSAGE_ID msgId, xpc_object_t reply)
 {
