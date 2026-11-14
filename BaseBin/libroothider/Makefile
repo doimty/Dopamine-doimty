@@ -6,7 +6,8 @@ CFLAGS = -I../.include -isysroot $(shell xcrun --sdk iphoneos --show-sdk-path) -
 
 LDFLAGS = -dynamiclib -rpath @loader_path/present -rpath @loader_path/fallback -lc++ -lbsm -L../.build -L../_external/lib -weak-lellekit -lchoma -lxpf -ljailbreak -framework IOKit -framework IOSurface
 
-SOURCES := $(wildcard src/*.c src/*.cpp src/*.m src/*.S)
+# app_isolation_reply.c is compiled inside jailbreakd.c to keep one definition.
+SOURCES := $(filter-out src/app_isolation_reply.c, $(wildcard src/*.c src/*.cpp src/*.m src/*.S))
 
 sign: $(TARGET).dylib
 	@ldid -Cadhoc -S $<
