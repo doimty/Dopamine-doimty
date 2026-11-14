@@ -106,7 +106,7 @@ jobs:
             --output dist/doimty-3012-isolation-manifest.json
 
       - name: Publish release asset
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'isolation/3.0.12')
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'isolation/3.0.12') || startsWith(github.ref_name, 'replay/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
