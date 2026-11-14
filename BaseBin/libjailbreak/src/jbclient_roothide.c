@@ -1,5 +1,6 @@
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+#include <time.h>
 #include "jbclient_xpc.h"
 #include "jbserver.h"
 
@@ -107,8 +108,36 @@ bool jbclient_palehide_present()
 	return palehide;
 }
 
+// lsd/cfprefsd ask this once per type or preference lookup, and each uncached
+// answer is a synchronous round trip to launchd. A short per-thread memo keeps
+// those hot paths local; changes become visible within the TTL.
+#define JB_BLACKLIST_CACHE_SLOTS 8
+#define JB_BLACKLIST_CACHE_TTL_NS (1000ull * 1000ull * 1000ull)
+
+struct jb_blacklist_cache_entry {
+    pid_t pid;
+    uint64_t expires;
+    bool blacklisted;
+};
+
+static _Thread_local struct jb_blacklist_cache_entry jbBlacklistPidCache[JB_BLACKLIST_CACHE_SLOTS];
+
+static uint64_t jb_blacklist_now_ns(void)
+{
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
 bool jbclient_blacklist_check_pid(pid_t pid)
 {
+    if (pid <= 0) return false;
+
+    struct jb_blacklist_cache_entry *entry =
+        &jbBlacklistPidCache[((unsigned)pid) % JB_BLACKLIST_CACHE_SLOTS];
+    uint64_t now = jb_blacklist_now_ns();
+    if (entry->pid == pid && entry->expires && now < entry->expires) {
+        return entry->blacklisted;
+    }
+
 	bool blacklisted = false;
 
     xpc_object_t xargs = xpc_dictionary_create_empty();
@@ -123,6 +152,10 @@ bool jbclient_blacklist_check_pid(pid_t pid)
 		}
 		xpc_release(xreply);
 	}
+
+    entry->pid = pid;
+    entry->blacklisted = blacklisted;
+    entry->expires = now + JB_BLACKLIST_CACHE_TTL_NS;
 
 	return blacklisted;
 }
