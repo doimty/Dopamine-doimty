@@ -1,6 +1,9 @@
 #import <Foundation/Foundation.h>
 
 #include <errno.h>
+#include <libjailbreak/jbsettings.h>
+#include "app_isolation_policy.h"
+#include "app_isolation_spawn.h"
 #include <fcntl.h>
 #include <spawn.h>
 #include <unistd.h>
