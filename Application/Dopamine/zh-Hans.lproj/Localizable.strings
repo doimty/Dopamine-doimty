@@ -124,3 +124,8 @@
 "Status_Title_Select_Package_Managers" = "请选择包管理器";
 "Select_Package_Managers_Install_Message" = "如果你不确定选择哪一个比较好，请选择 Sileo";
 "Continue" = "继续";
+
+// Isolation settings
+"Settings_Spinlock_Isolation" = "黑名单隔离";
+"Setting_Apply_Failed_Message" = "越狱端没有接受这项设置，请重新打开 App 再试。";
+"OK" = "好";

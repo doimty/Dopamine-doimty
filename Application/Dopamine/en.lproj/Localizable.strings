@@ -129,3 +129,8 @@
 "Status_Title_Select_Package_Managers" = "Select Package Manager(s)";
 "Select_Package_Managers_Install_Message" = "If you are unsure which one to select, select Sileo";
 "Continue" = "Continue";
+
+// Isolation settings
+"Settings_Spinlock_Isolation" = "Spinlock Isolation";
+"Setting_Apply_Failed_Message" = "The jailbreak did not accept this setting. Reopen the app and try again.";
+"OK" = "OK";

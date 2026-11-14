@@ -27,6 +27,38 @@
 @end
 
 @implementation DOSettingsController
+// 已越狱时读取实际状态；旧环境不支持该键时退回本地偏好。
+- (id)readSpinlockIsolationEnabled:(PSSpecifier *)specifier
+{
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        xpc_object_t value = NULL;
+        if (jbclient_jbsettings_get("spinlockSafeIsolationEnabled", &value) == 0
+            && value && xpc_get_type(value) == XPC_TYPE_BOOL) {
+            return @(xpc_bool_get_value(value));
+        }
+    }
+    return [self readPreferenceValue:specifier];
+}
+
+- (void)setSpinlockIsolationEnabled:(id)value specifier:(PSSpecifier *)specifier
+{
+    BOOL enabled = [value boolValue];
+    if ([DOEnvironmentManager sharedManager].isJailbroken) {
+        int result = jbclient_platform_jbsettings_set_bool("spinlockSafeIsolationEnabled", enabled);
+        if (result != 0) {
+            // Never reload the list from inside the switch update; defer and only
+            // surface the failure once the cell has finished updating.
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIAlertController *alert = [UIAlertController alertControllerWithTitle:DOLocalizedString(@"Error") message:DOLocalizedString(@"Setting_Apply_Failed_Message") preferredStyle:UIAlertControllerStyleAlert];
+                [alert addAction:[UIAlertAction actionWithTitle:DOLocalizedString(@"OK") style:UIAlertActionStyleDefault handler:nil]];
+                [self presentViewController:alert animated:YES completion:nil];
+            });
+            return;
+        }
+    }
+    [self setPreferenceValue:value specifier:specifier];
+}
+
 
 - (void)viewDidLoad
 {

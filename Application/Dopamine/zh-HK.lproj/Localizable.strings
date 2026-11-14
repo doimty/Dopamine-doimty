@@ -123,3 +123,8 @@
 "Select_Package_Managers_Install_Message" = "若不確定如何選擇，請使用 Sileo";
 "Continue" = "繼續";
 
+
+// Isolation settings
+"Settings_Spinlock_Isolation" = "黑名單隔離";
+"Setting_Apply_Failed_Message" = "越獄端沒有接受呢項設定，請重新開啟 App 再試。";
+"OK" = "好";
