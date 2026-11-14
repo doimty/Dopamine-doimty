@@ -267,6 +267,15 @@
             [dyldPatchSpecifier setProperty:@"dyldPatchEnabled" forKey:@"key"];
             [dyldPatchSpecifier setProperty:@NO forKey:@"default"];
             [specifiers addObject:dyldPatchSpecifier];
+
+            // Only meaningful on the platform the repair actually supports.
+            if (envManager.isArm64e && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 15) {
+                PSSpecifier *isolationSpecifier = [PSSpecifier preferenceSpecifierNamed:DOLocalizedString(@"Settings_Spinlock_Isolation") target:self set:@selector(setSpinlockIsolationEnabled:specifier:) get:@selector(readSpinlockIsolationEnabled:) detail:nil cell:PSSwitchCell edit:nil];
+                [isolationSpecifier setProperty:@YES forKey:@"enabled"];
+                [isolationSpecifier setProperty:@"spinlockSafeIsolationEnabled" forKey:@"key"];
+                [isolationSpecifier setProperty:@YES forKey:@"default"];
+                [specifiers addObject:isolationSpecifier];
+            }
             /**************************** roothide specfic *********************************/
             
             

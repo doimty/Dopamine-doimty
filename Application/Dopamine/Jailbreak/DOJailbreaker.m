@@ -627,6 +627,7 @@ void *boomerang_server(struct boomerang_info *info)
     }
     
     gSystemInfo.jailbreakSettings.markAppsAsDebugged = appJITEnabled;
+    gSystemInfo.jailbreakSettings.spinlockSafeIsolationDisabled = ![[DOPreferenceManager sharedManager] boolPreferenceValueForKey:@"spinlockSafeIsolationEnabled" fallback:YES];
     gSystemInfo.jailbreakSettings.jetsamMultiplier = jetsamMultiplierOption ? (jetsamMultiplierOption.doubleValue / 2) : 0;
     
     
