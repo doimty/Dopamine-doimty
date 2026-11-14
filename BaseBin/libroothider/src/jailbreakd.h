@@ -12,6 +12,7 @@ typedef enum {
 	JBD_MSG_EXEC_TRACE_START = 1004,
 	JBD_MSG_EXEC_TRACE_CANCEL = 1005,
 	JBD_MSG_SPINLOCK_FIX_ONLY = 1006,
+	JBD_MSG_APP_ISOLATION_REPAIR = 1007,
 } JBD_MESSAGE_ID;
 
 void enableJBDLog(void* debugLog, void* errorLog);
@@ -36,5 +37,9 @@ int jbdSpawnExecCancel(const char* execfile);
 int jbdExecTraceStart(const char* execfile, bool* traced);
 int jbdExecTraceCancel(const char* execfile, bool* detached);
 int jbdSpinlockFixOnly(int pid, bool resume);
+
+// 黑名单 App 的严格隔离：修复请求与就绪查询。
+int jbdAppIsolationRepair(pid_t pid);
+bool jbdIsolationHelperReady(void);
 
 #endif // JAILBREAKD_H

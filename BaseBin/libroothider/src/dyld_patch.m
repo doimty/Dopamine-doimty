@@ -11,6 +11,7 @@
 #include <libjailbreak/libjailbreak.h>
 #include "common.h"
 #include "log.h"
+#include "app_isolation_ranges.h"
 
 uint64_t show_dyld_regions(mach_port_t task, bool more)
 {
@@ -590,7 +591,7 @@ br   x17
     return 0;
 }
 
-int proc_patch_dyld_internal(pid_t pid, bool spinlockFixOnly)
+int proc_patch_dyld_internal(pid_t pid, bool spinlockFixOnly, bool strictIsolation)
 {
     int ret = 0;
 
@@ -612,6 +613,25 @@ int proc_patch_dyld_internal(pid_t pid, bool spinlockFixOnly)
         return -1;
     }
 
+    if (strictIsolation) {
+        struct rh_app_isolation_layout layout = {
+            .stock_size = stockDyldInfo->vmSpaceSize,
+            .patched_size = patchedDyldInfo->vmSpaceSize,
+            .stock_cache_function = stockDyldInfo->loadDyldCache_function,
+            .patched_cache_function = patchedDyldInfo->loadDyldCache_function,
+            .patched_trampoline = patchedDyldInfo->loadDyldCache_trampoline,
+        };
+        bool supported = false;
+#ifdef __arm64e__
+        if (!__builtin_available(iOS 16.0, *)) supported = true;
+#endif
+        if (!spinlockFixOnly || !supported || !dyld_patch_enabled() ||
+            !rh_app_isolation_layout_valid(layout, PAGE_SIZE)) {
+            JBLogError("isolation repair rejected: unsupported mode or invalid dyld hook layout");
+            return -1;
+        }
+    }
+
     kr = task_for_pid(mach_task_self(), pid, &task);
     if(kr != KERN_SUCCESS || !MACH_PORT_VALID(task)) {
         JBLogError("task_for_pid failed: %x,%s task=%x", kr, mach_error_string(kr), task);
@@ -628,8 +648,25 @@ int proc_patch_dyld_internal(pid_t pid, bool spinlockFixOnly)
         goto failed;
     }
 
+    if (strictIsolation && (count != TASK_DYLD_INFO_COUNT ||
+        dyldInfo.all_image_info_addr < stockDyldInfo->all_image_info_addr ||
+        dyldInfo.all_image_info_size < sizeof(uint32_t) * 2)) {
+        JBLogError("isolation repair rejected: invalid target dyld info");
+        goto failed;
+    }
     uint64_t dyld_address = dyldInfo.all_image_info_addr - stockDyldInfo->all_image_info_addr;
     uint64_t dyld_entry = dyld_address + stockDyldInfo->entrypoint;
+    if (strictIsolation) {
+        struct mach_header_64 targetHeader = {0};
+        vm_size_t copied = 0;
+        if (!rh_app_isolation_address_span(dyld_address, stockDyldInfo->loadDyldCache_function, 20) ||
+            vm_read_overwrite(task, dyld_address, sizeof(targetHeader), (vm_address_t)&targetHeader, &copied) != KERN_SUCCESS ||
+            copied != sizeof(targetHeader) || targetHeader.magic != MH_MAGIC_64 ||
+            targetHeader.filetype != MH_DYLINKER) {
+            JBLogError("isolation repair rejected: target dyld header mismatch");
+            goto failed;
+        }
+    }
     JBLogDebug("default dyld=%p entry=%p", (void*)dyld_address, (void*)dyld_entry);
 
     vm_prot_t cur_prot=0, max_prot=0;
@@ -640,6 +677,13 @@ int proc_patch_dyld_internal(pid_t pid, bool spinlockFixOnly)
     }
 
     JBLogDebug("remap dyld=%p prot=%x/%x", remoteLoadAddress, cur_prot, max_prot);
+
+    if (strictIsolation &&
+        (!rh_app_isolation_address_span(remoteLoadAddress, patchedDyldInfo->loadDyldCache_function, 20) ||
+         !rh_app_isolation_address_span(remoteLoadAddress, patchedDyldInfo->loadDyldCache_trampoline, 40))) {
+        JBLogError("isolation repair rejected: mapped patch address overflow");
+        goto failed;
+    }
 
     uint64_t bsd_proc = proc_find(pid);
     if(!bsd_proc) {
@@ -809,10 +853,15 @@ final:
 
 int proc_patch_dyld(pid_t pid)
 {
-    return proc_patch_dyld_internal(pid, false);
+    return proc_patch_dyld_internal(pid, false, false);
 }
 
 int proc_fix_spinlock(pid_t pid)
 {
-    return proc_patch_dyld_internal(pid, true);
+    return proc_patch_dyld_internal(pid, true, false);
+}
+
+int proc_fix_spinlock_strict(pid_t pid)
+{
+    return proc_patch_dyld_internal(pid, true, true);
 }
