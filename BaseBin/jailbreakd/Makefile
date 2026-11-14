@@ -8,7 +8,7 @@ LDFLAGS = -L../.build -ljailbreak -lroothider -lbsm
 sign: $(TARGET)
 	@ldid -Cadhoc -Sentitlements.plist $<
 
-$(TARGET): $(wildcard src/*.m src/*.c) ../libroothider/src/app_isolation_reply.c
+$(TARGET): $(wildcard src/*.m src/*.c)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 clean:

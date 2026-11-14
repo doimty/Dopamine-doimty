@@ -11,6 +11,7 @@
 #include <libjailbreak/libjailbreak.h>
 #include "jailbreakd.h"
 #include "app_isolation_reply.h"
+#include "app_isolation_reply.c"
 #include "common.h"
 #include "log.h"
 
