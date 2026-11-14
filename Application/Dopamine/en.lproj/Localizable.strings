@@ -134,3 +134,14 @@
 "Settings_Spinlock_Isolation" = "Spinlock Isolation";
 "Setting_Apply_Failed_Message" = "The jailbreak did not accept this setting. Reopen the app and try again.";
 "OK" = "OK";
+
+// Dyld patch row
+"Enable dyld patch" = "Enable dyld patch";
+"Dyld Patch(Spinlock Fix)" = "Dyld Patch(Spinlock Fix)";
+
+// Upstream keys that had no entries at all
+"Checking For Duplicate Apps" = "Checking For Duplicate Apps";
+"Warning" = "Warning";
+"Hiding Jailbreak" = "Hiding Jailbreak";
+"When spinlock fix is ​​enabled, app extensions of blacklisted apps will be disabled and may also cause spinlock panics when the blacklisted app is in foreground/background.\n\nYou can first try disabling tweak injection for the app in Choicy (spinlock fix still works), and only blacklist the app if that doesn't work." = "When spinlock fix is ​​enabled, app extensions of blacklisted apps will be disabled and may also cause spinlock panics when the blacklisted app is in foreground/background.\\n\\nYou can first try disabling tweak injection for the app in Choicy (spinlock fix still works), and only blacklist the app if that doesn't work.";
+"Your device currently has another jailbreak activated, please reboot device." = "Your device currently has another jailbreak activated, please reboot device.";

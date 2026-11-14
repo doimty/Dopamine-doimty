@@ -189,3 +189,15 @@
 "Bypassing PAC (%@)" = "正在繞過 PAC (%@)";
 "Bypassing PPL (%@)" = "正在繞過 PPL (%@)";
 "Bypassing SPTM (%@)" = "正在繞過 SPTM (%@)";
+
+// Dyld patch row
+"Enable dyld patch" = "啟用 Dyld 修補";
+"Dyld Patch(Spinlock Fix)" = "Dyld 修補（Spinlock 修正）";
+
+// Upstream keys that had no entries at all
+"Checking For Duplicate Apps" = "正在檢查重複 App";
+"Error" = "錯誤";
+"Warning" = "警告";
+"Hiding Jailbreak" = "正在隱藏越獄";
+"When spinlock fix is ​​enabled, app extensions of blacklisted apps will be disabled and may also cause spinlock panics when the blacklisted app is in foreground/background.\n\nYou can first try disabling tweak injection for the app in Choicy (spinlock fix still works), and only blacklist the app if that doesn't work." = "开启 Spinlock 修复后，黑名单 App 的扩展会被停用，该 App 在前台或后台运行时也可能触发 Spinlock panic。\\n\\n可以先在 Choicy 里关闭这个 App 的插件注入（Spinlock 修复仍然有效），如果还是不行，再把它加入黑名单。";
+"Your device currently has another jailbreak activated, please reboot device." = "目前裝置已有另一個越獄環境生效，請重新啟動裝置。";
